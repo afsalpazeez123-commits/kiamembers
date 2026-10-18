@@ -1,0 +1,2329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script>window.__fbResolve=null;window.__fbReady=new Promise(res=>{window.__fbResolve=res;});
+window.__authResolve=null;window.__authReady=new Promise(res=>{window.__authResolve=res;});</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>CFM Attendance</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --ink:#10222B; --ink-2:#3E5560; --muted:#66808A;
+  --paper:#EEF3F3; --surface:#FFFFFF; --line:#D5DFE1; --line-2:#E5ECED;
+  --brand:#0E5A5F; --brand-ink:#FFFFFF; --brand-soft:#DCEDEC; --brand-mid:#8DBFBD;
+  --ok:#17864A; --ok-text:#17864A; --dup:#2D5AAE; --bad:#B5372A;
+  --rukun:#6B3FA0; --karkoon:#127D9C; --assoc:#A87A0E;
+  --shadow:0 10px 40px rgba(16,34,43,.22);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ink:#E6EFF1; --ink-2:#B5C6CC; --muted:#8CA0A8;
+    --paper:#0B1417; --surface:#131F24; --line:#26363C; --line-2:#1C2A30;
+    --brand:#57BDB6; --brand-ink:#04211F; --brand-soft:#133337; --brand-mid:#2C6E70;
+    --rukun:#B992E8; --karkoon:#52B8DA; --assoc:#E2B04A; --ok-text:#4CCB86;
+    --shadow:0 10px 40px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#E6EFF1; --ink-2:#B5C6CC; --muted:#8CA0A8;
+  --paper:#0B1417; --surface:#131F24; --line:#26363C; --line-2:#1C2A30;
+  --brand:#57BDB6; --brand-ink:#04211F; --brand-soft:#133337; --brand-mid:#2C6E70;
+  --rukun:#B992E8; --karkoon:#52B8DA; --assoc:#E2B04A; --ok-text:#4CCB86;
+  --shadow:0 10px 40px rgba(0,0,0,.6);
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font:400 16px/1.45 "Instrument Sans",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  font-variant-numeric:tabular-nums;min-height:100vh}
+h1,h2,h3{font-family:"Bricolage Grotesque","Instrument Sans",system-ui,sans-serif;margin:0;font-weight:700;letter-spacing:-.01em}
+h2{font-size:18px;line-height:1.25}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--brand);outline-offset:2px;border-radius:8px}
+.muted{color:var(--muted)}
+.ic{flex:none;display:block}
+
+/* ---------- header + nav ---------- */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:12px;padding:10px 16px}
+.brand{display:flex;align-items:center;gap:10px;font-family:"Bricolage Grotesque",sans-serif;font-weight:700;font-size:19px;letter-spacing:-.01em;white-space:nowrap}
+.brand svg{color:var(--brand)}
+.chip{margin-left:auto;display:flex;align-items:center;gap:8px;min-width:0;max-width:60vw;background:var(--brand-soft);color:var(--ink);
+  border:0;border-radius:999px;padding:7px 12px;font-size:13.5px;font-weight:500}
+.chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip .dot{width:8px;height:8px;border-radius:50%;background:var(--ok-text);flex:none}
+.tabs{display:flex}
+.tab{background:none;border:0;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:6px}
+.tab[aria-current="page"]{color:var(--brand)}
+.tabs-bottom{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom,0px)}
+.tabs-bottom .tab{flex:1;flex-direction:column;padding:9px 4px 8px;font-size:12px;font-weight:600;gap:3px}
+.tabs-bottom .tab[aria-current="page"]{box-shadow:inset 0 3px 0 var(--brand)}
+.tabs-top{display:none}
+.view{padding:16px 16px calc(96px + env(safe-area-inset-bottom,0px));max-width:1040px;margin:0 auto}
+#v-scan{max-width:620px}
+
+/* ---------- primitives ---------- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px}
+.card+.card,.card+.grid2,.grid2+.card,.stack>*+*{margin-top:14px}
+.card h2{margin-bottom:12px}
+.row{display:flex;align-items:center;gap:10px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;border:1px solid var(--line);background:var(--surface);
+  padding:10px 14px;font-weight:600;font-size:15px;min-height:44px}
+.btn:hover{border-color:var(--brand)}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.btn.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}
+.btn.small{min-height:36px;padding:6px 10px;font-size:14px}
+.btn:disabled{opacity:.5;cursor:default}
+.btn-row{display:flex;flex-wrap:wrap;gap:10px}
+.iconbtn{background:none;border:0;padding:8px;border-radius:10px;color:var(--muted);display:inline-flex}
+.iconbtn:hover{color:var(--ink);background:var(--line-2)}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field>label,.lbl{font-size:13.5px;font-weight:600;color:var(--ink-2)}
+input[type=text],input[type=search],input[type=date],select{width:100%;min-height:44px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink)}
+input::placeholder{color:var(--muted)}
+select:disabled{opacity:.65}
+.pill{--c:var(--muted);display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:3px 9px;border-radius:999px;
+  color:var(--c);background:color-mix(in srgb,var(--c) 13%,transparent);white-space:nowrap}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--c)}
+.t-rukun{--c:var(--rukun)} .t-karkoon{--c:var(--karkoon)} .t-assoc{--c:var(--assoc)}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:12px;font-size:14px;margin-bottom:14px;
+  background:color-mix(in srgb,var(--assoc) 14%,var(--surface));border:1px solid color-mix(in srgb,var(--assoc) 45%,var(--line))}
+.empty{padding:22px 8px;text-align:center;color:var(--muted)}
+.empty strong{display:block;color:var(--ink);font-family:"Bricolage Grotesque",sans-serif;font-size:17px;margin-bottom:4px}
+
+/* ---------- scan ---------- */
+.scan-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-bottom:12px}
+.scan-head .field{flex:1}
+.tally{text-align:right;line-height:1.05;white-space:nowrap}
+.tally b{font-family:"Bricolage Grotesque",sans-serif;font-size:38px;font-weight:800;letter-spacing:-.02em}
+.tally span{display:block;font-size:13px;color:var(--muted);margin-top:2px}
+.viewport{position:relative;aspect-ratio:4/3;border-radius:18px;overflow:hidden;background:#0A1216;color:#fff}
+.viewport video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none}
+.viewport.live video{display:block}
+.reticle{position:absolute;inset:16% 22%;pointer-events:none;display:none}
+.viewport.live .reticle{display:block}
+.reticle i{position:absolute;width:30px;height:30px;border:4px solid #fff;opacity:.92}
+.reticle i:nth-child(1){left:0;top:0;border-right:0;border-bottom:0;border-top-left-radius:10px}
+.reticle i:nth-child(2){right:0;top:0;border-left:0;border-bottom:0;border-top-right-radius:10px}
+.reticle i:nth-child(3){left:0;bottom:0;border-right:0;border-top:0;border-bottom-left-radius:10px}
+.reticle i:nth-child(4){right:0;bottom:0;border-left:0;border-top:0;border-bottom-right-radius:10px}
+.vp-idle{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;text-align:center}
+.viewport.live .vp-idle{display:none}
+.vp-idle p{margin:0;max-width:34ch;font-size:14.5px;color:#C4D3D8}
+.vp-idle .btn.primary{background:#fff;border-color:#fff;color:#0A1216}
+.vp-ctl{position:absolute;right:10px;top:10px;display:none;gap:8px}
+.viewport.live .vp-ctl{display:flex}
+.vp-ctl button{background:rgba(10,18,22,.62);border:0;color:#fff;border-radius:999px;padding:10px}
+.verdict{margin-top:12px;border-radius:16px;padding:16px 18px;display:flex;gap:14px;align-items:center;min-height:112px;
+  background:var(--surface);border:1px solid var(--line)}
+.verdict .v-icon{width:52px;height:52px;border-radius:50%;display:grid;place-items:center;flex:none;background:var(--brand-soft);color:var(--brand)}
+.verdict .v-main{min-width:0;flex:1}
+.verdict .v-title{font-size:13.5px;font-weight:600;color:var(--muted)}
+.verdict .v-name{font-family:"Bricolage Grotesque",sans-serif;font-weight:800;font-size:27px;line-height:1.1;letter-spacing:-.015em;margin:2px 0 6px;overflow-wrap:anywhere}
+.verdict .v-meta{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:14px}
+.verdict .v-hint{font-size:15px;color:var(--ink-2)}
+.verdict.is-ok,.verdict.is-dup,.verdict.is-bad{color:#fff;border-color:transparent}
+.verdict.is-ok{background:var(--ok)} .verdict.is-dup{background:var(--dup)} .verdict.is-bad{background:var(--bad)}
+.verdict.is-ok .v-icon,.verdict.is-dup .v-icon,.verdict.is-bad .v-icon{background:rgba(255,255,255,.2);color:#fff}
+.verdict.is-ok .v-title,.verdict.is-dup .v-title,.verdict.is-bad .v-title{color:rgba(255,255,255,.9);font-weight:700}
+.verdict .pill{background:rgba(255,255,255,.2);color:#fff}
+.verdict .pill::before{background:#fff}
+.verdict .v-undo{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.5);color:#fff;border-radius:10px;padding:8px 12px;font-weight:600;display:inline-flex;gap:6px;align-items:center;flex:none}
+.alt-row{display:flex;gap:10px;margin:12px 0 14px;flex-wrap:wrap}
+.alt-row .btn{flex:1;min-width:150px}
+.result{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line-2)}
+.result:first-child{border-top:0}
+.who{flex:1;min-width:0}
+.who b{display:block;font-weight:600;overflow-wrap:anywhere}
+.who small{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;color:var(--muted);font-size:13.5px}
+.tick{color:var(--ok-text);font-weight:600;font-size:14px;display:inline-flex;gap:5px;align-items:center;white-space:nowrap}
+.hint{font-size:13.5px;color:var(--muted);margin:8px 0 0}
+
+/* ---------- members ---------- */
+.toolbar{display:grid;gap:10px;grid-template-columns:1fr 1fr}
+.toolbar .search,.toolbar .unit{grid-column:1/-1}
+.bulk{margin:14px 0}
+.bulk p{margin:0 0 12px;color:var(--ink-2);font-size:15px}
+.bulk .btn-row .btn{flex:1 1 100%}
+.m-list{display:grid;gap:10px;grid-template-columns:1fr}
+.m-row{display:flex;gap:12px;align-items:center;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.m-row:hover{border-color:var(--brand)}
+.m-row .qr{width:58px;height:58px;flex:none;border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+.m-row .qr svg{display:block;width:100%;height:100%}
+.m-row .who b{font-size:16px}
+.m-row .who small+small{margin-top:5px}
+.count-line{margin:12px 2px 0;font-size:14px;color:var(--muted)}
+
+/* ---------- dashboard ---------- */
+.dash-controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.dash-controls .field:first-child{grid-column:1/-1}
+.hero{display:grid;gap:18px;padding:20px}
+.hero-num{font-family:"Bricolage Grotesque",sans-serif;font-weight:800;font-size:clamp(56px,16vw,84px);line-height:.95;letter-spacing:-.035em}
+.hero-cap{font-size:16px;color:var(--ink-2);margin-top:6px}
+.meter{height:14px;border-radius:999px;background:var(--line-2);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--brand);border-radius:999px}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.fact{border-left:3px solid var(--line);padding-left:10px}
+.fact b{display:block;font-family:"Bricolage Grotesque",sans-serif;font-size:22px;font-weight:700}
+.fact span{font-size:13px;color:var(--muted)}
+.bar-row+.bar-row{margin-top:12px}
+.unit-cols>div+div{margin-top:12px}
+.bar-top{display:flex;justify-content:space-between;gap:10px;font-size:14.5px;margin-bottom:5px}
+.bar-label{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-val{color:var(--ink-2);white-space:nowrap}
+.bar-val em{font-style:normal;font-weight:700;color:var(--ink);margin-left:4px}
+.bar{height:10px;border-radius:999px;background:var(--line-2);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:999px;min-width:2px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.seg button{border:0;background:none;padding:7px 12px;font-size:14px;font-weight:600;color:var(--muted);min-height:36px}
+.seg button[aria-pressed="true"]{background:var(--brand);color:var(--brand-ink)}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.card-head h2{margin:0}
+.chart{width:100%;height:auto;display:block;overflow:visible}
+.chart text{fill:var(--muted);font-size:11px;font-family:"Instrument Sans",system-ui,sans-serif}
+.chart .val{fill:var(--ink-2);font-weight:600}
+.dl-list .result .side{text-align:right;font-size:13.5px;color:var(--ink-2);white-space:nowrap}
+.dl-list .result .side small{display:block;color:var(--muted)}
+.tabs-inline{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center}
+.tabs-inline input{flex:1;min-width:150px;min-height:38px}
+
+/* ---------- sessions ---------- */
+.s-row{display:flex;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--line-2)}
+.s-row:first-of-type{border-top:0}
+.s-actions{display:flex;gap:2px}
+.form-grid{display:grid;grid-template-columns:1fr;gap:12px}
+
+/* ---------- overlay / sheet ---------- */
+#overlay{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center}
+.scrim{position:absolute;inset:0;background:rgba(6,14,17,.55)}
+.sheet{position:relative;background:var(--surface);width:100%;max-width:460px;max-height:92vh;overflow:auto;border-radius:20px 20px 0 0;
+  padding:20px 18px calc(18px + env(safe-area-inset-bottom,0px));box-shadow:var(--shadow);animation:rise .18s ease-out}
+@keyframes rise{from{transform:translateY(24px);opacity:.4}to{transform:none;opacity:1}}
+.sheet-x{position:absolute;right:10px;top:10px}
+.sheet h2{margin-bottom:8px;padding-right:36px}
+.sheet p{margin:0 0 16px;color:var(--ink-2)}
+.sheet-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.sheet-actions .btn{flex:1;min-width:140px}
+.idcard{--c:var(--brand);margin-top:30px;text-align:center;border:1px solid var(--line);border-top:8px solid var(--c);border-radius:14px;padding:18px 16px 16px}
+.idcard .q{width:min(64vw,240px);margin:0 auto 12px;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.idcard .q svg{display:block;width:100%;height:auto}
+.idcard h3{font-size:24px;line-height:1.15;overflow-wrap:anywhere}
+.idcard .sub{color:var(--ink-2);margin:4px 0 8px}
+.idcard .id{margin-top:10px;font-weight:700;letter-spacing:.04em}
+.hist{margin-top:16px;font-size:14.5px}
+.hist h3{font-size:15px;margin-bottom:6px}
+.hist li{display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--line-2)}
+.hist ul{list-style:none;margin:0;padding:0}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:60;max-width:min(92vw,420px);
+  background:var(--ink);color:var(--paper);padding:11px 16px;border-radius:12px;font-size:14.5px;font-weight:500;box-shadow:var(--shadow)}
+#toast.bad{background:var(--bad);color:#fff}
+.authscreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}
+.authcard{width:100%;max-width:380px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:26px 22px;box-shadow:var(--shadow)}
+.login-err{margin-top:12px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--bad) 14%,var(--surface));border:1px solid color-mix(in srgb,var(--bad) 45%,var(--line));color:var(--bad);font-size:14px}
+.forum-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line-2)}
+.forum-row:first-child{border-top:0}
+.forum-row .who{flex:1}
+.donut-wrap{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.legend{flex:1;min-width:140px}
+.legend-row{display:flex;align-items:center;gap:8px;font-size:14px;padding:4px 0}
+.legend-row i{width:10px;height:10px;border-radius:50%;flex:none}
+.legend-row span:first-of-type{flex:1}
+.legend-row b{font-weight:700}
+.legend-row .muted{color:var(--muted);font-size:12.5px;width:34px;text-align:right}
+
+@media (min-width:860px){
+  .top{padding:12px 28px}
+  .tabs-top{display:flex;gap:4px;margin-left:24px}
+  .tabs-top .tab{padding:9px 14px;border-radius:10px;font-size:15px;font-weight:600}
+  .tabs-top .tab[aria-current="page"]{background:var(--brand-soft)}
+  .tabs-bottom{display:none}
+  .chip{max-width:340px}
+  .view{padding:24px 28px 48px}
+  #toast{bottom:28px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+  .grid2>.card{margin-top:0!important}
+  .hero{grid-template-columns:auto 1fr;align-items:center;gap:36px}
+  .m-list{grid-template-columns:1fr 1fr}
+  .dash-controls{grid-template-columns:2fr 1fr 1fr}
+  .dash-controls .field:first-child{grid-column:auto}
+  .toolbar{grid-template-columns:2fr 1fr 1fr 1fr}
+  .toolbar .search,.toolbar .unit{grid-column:auto}
+  .bulk .btn-row .btn{flex:0 1 auto}
+  .unit-cols{display:grid;grid-template-columns:1fr 1fr;gap:0 28px}
+  .unit-cols>div+div{margin-top:0}
+  #overlay{align-items:center}
+  .sheet{border-radius:20px}
+  .form-grid{grid-template-columns:2fr 1fr auto;align-items:end}
+}
+@media (prefers-reduced-motion:reduce){.sheet{animation:none}}
+</style>
+</head>
+<body>
+<div id="app-login" class="authscreen">
+  <div class="authcard">
+    <div class="brand" style="justify-content:center;margin-bottom:18px">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true"><rect x="2" y="2" width="9" height="9" rx="2.2" stroke="currentColor" stroke-width="2.4"/><rect x="15" y="2" width="9" height="9" rx="2.2" stroke="currentColor" stroke-width="2.4"/><rect x="2" y="15" width="9" height="9" rx="2.2" stroke="currentColor" stroke-width="2.4"/><rect x="15" y="15" width="4" height="4" rx="1" fill="currentColor"/><rect x="20.5" y="20.5" width="3.5" height="3.5" rx="1" fill="currentColor"/></svg>
+      CFM Attendance
+    </div>
+    <h2 style="text-align:center;margin-bottom:16px">Admin sign in</h2>
+    <div class="stack">
+      <div class="field"><label for="loginEmail">Email</label><input type="text" id="loginEmail" autocomplete="username" inputmode="email"></div>
+      <div class="field"><label for="loginPass">Password</label><input type="password" id="loginPass" autocomplete="current-password"></div>
+    </div>
+    <div id="loginErr" class="login-err" hidden></div>
+    <button class="btn primary" style="width:100%;margin-top:16px" data-act="do-login">Sign in</button>
+    <p class="hint" id="loginBusy" style="text-align:center;margin-top:10px"></p>
+  </div>
+</div>
+
+<div id="app-super" hidden>
+  <header class="top">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true"><rect x="2" y="2" width="9" height="9" rx="2.2" stroke="currentColor" stroke-width="2.4"/><rect x="15" y="2" width="9" height="9" rx="2.2" stroke="currentColor" stroke-width="2.4"/><rect x="2" y="15" width="9" height="9" rx="2.2" stroke="currentColor" stroke-width="2.4"/><rect x="15" y="15" width="4" height="4" rx="1" fill="currentColor"/><rect x="20.5" y="20.5" width="3.5" height="3.5" rx="1" fill="currentColor"/></svg>
+      CFM Attendance — Admin
+    </div>
+    <button class="chip" data-act="do-logout" style="margin-left:auto"><span>Sign out</span></button>
+  </header>
+  <div class="view" style="max-width:720px;margin:0 auto">
+    <div class="card hero" id="supOverview"></div>
+    <div class="card">
+      <h2>New forum / area</h2>
+      <div class="form-grid">
+        <div class="field"><label for="supForumName">Name</label><input type="text" id="supForumName" placeholder="e.g. Muscat Chapter"></div>
+        <button class="btn primary" data-act="create-forum">Create forum</button>
+      </div>
+    </div>
+    <div class="card"><div class="card-head"><h2>Forums</h2><button class="btn small" data-act="refresh-super">Refresh</button></div><div id="supForumsList"></div></div>
+    <div class="card">
+      <h2>Details</h2>
+      <div class="dash-controls">
+        <div class="field"><label for="supFForum">Forum</label><select id="supFForum"><option value="">Choose a forum…</option></select></div>
+        <div class="field"><label for="supFWing">Wing</label><select id="supFWing"><option value="All">All</option><option>Men</option><option>Women</option></select></div>
+        <div class="field"><label for="supFStatus">Membership</label><select id="supFStatus"><option value="All">All</option><option>Rukun</option><option>Karkoon</option><option>Active Associate</option></select></div>
+        <div class="field"><label for="supFUnit">Unit</label><select id="supFUnit"><option value="All">All</option></select></div>
+      </div>
+      <div id="supDetailsBody"><div class="empty"><strong>Choose a forum above</strong>See its breakdown, session attendance, and export options.</div></div>
+    </div>
+  </div>
+</div>
+
+<div id="app-forum" hidden>
+<header class="top">
+  <div class="brand">
+    <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true"><rect x="2" y="2" width="9" height="9" rx="2.2" stroke="currentColor" stroke-width="2.4"/><rect x="15" y="2" width="9" height="9" rx="2.2" stroke="currentColor" stroke-width="2.4"/><rect x="2" y="15" width="9" height="9" rx="2.2" stroke="currentColor" stroke-width="2.4"/><rect x="15" y="15" width="4" height="4" rx="1" fill="currentColor"/><rect x="20.5" y="20.5" width="3.5" height="3.5" rx="1" fill="currentColor"/></svg>
+    CFM Attendance
+  </div>
+  <nav class="tabs tabs-top" data-nav aria-label="Sections"></nav>
+  <button class="chip" id="sessionChip" data-act="go-sessions" aria-label="Current session. Open sessions"><i class="dot"></i><span id="chipText"></span></button>
+  <button class="iconbtn" data-act="do-logout" aria-label="Sign out" title="Sign out" style="margin-left:6px">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+  </button>
+</header>
+
+<main>
+  <!-- SCAN -->
+  <section class="view" id="v-scan">
+    <div id="banner"></div>
+    <div class="scan-head">
+      <div class="field"><label for="scanSess">Checking in to</label><select id="scanSess"></select></div>
+      <div class="tally"><b id="tallyN">0</b><span id="tallyOf">of 222 present</span></div>
+    </div>
+    <div class="viewport" id="viewport">
+      <video id="video" playsinline muted></video>
+      <div class="reticle"><i></i><i></i><i></i><i></i></div>
+      <div class="vp-ctl">
+        <button data-act="flip-cam" aria-label="Switch camera" id="btnFlip"></button>
+        <button data-act="stop-cam" aria-label="Turn camera off" id="btnStop"></button>
+      </div>
+      <div class="vp-idle">
+        <div id="vpIcon"></div>
+        <p id="camMsg">Point the camera at a member's QR code and they are checked in automatically.</p>
+        <button class="btn primary" data-act="start-cam" id="btnStart">Start camera</button>
+      </div>
+    </div>
+    <div class="verdict is-idle" id="verdict" role="status" aria-live="polite"></div>
+    <div class="alt-row">
+      <label class="btn" id="photoBtn" tabindex="0"><span id="photoIcon"></span>Scan from photo<input type="file" id="photo" accept="image/*" capture="environment" hidden></label>
+      <button class="btn" data-act="sound" id="btnSound"></button>
+    </div>
+    <div class="card">
+      <h2>Check in by name or ID</h2>
+      <input type="search" id="lookupQ" placeholder="Name, unit or ID (CFM26-023)" autocomplete="off" enterkeyhint="done" aria-label="Search members">
+      <p class="hint">Using a handheld scanner? Tap this box first, then scan.</p>
+      <div id="lookupRes"></div>
+    </div>
+    <div class="card">
+      <h2>Recent check-ins</h2>
+      <div id="recent"></div>
+    </div>
+  </section>
+
+  <!-- DASHBOARD -->
+  <section class="view" id="v-dash" hidden></section>
+
+  <!-- MEMBERS -->
+  <section class="view" id="v-members" hidden>
+    <div id="qrBanner"></div>
+    <div class="btn-row" style="margin-bottom:14px"><button class="btn primary" data-act="add-member" id="btnAdd"></button></div>
+    <div class="toolbar">
+      <div class="field search"><label for="mq">Search members</label><input type="search" id="mq" placeholder="Name, unit or ID" autocomplete="off"></div>
+      <div class="field"><label for="mWing">Wing</label><select id="mWing"></select></div>
+      <div class="field"><label for="mStatus">Membership</label><select id="mStatus"></select></div>
+      <div class="field unit"><label for="mUnit">Unit</label><select id="mUnit"></select></div>
+    </div>
+    <div class="card bulk">
+      <h2>QR codes for everyone</h2>
+      <p>Every member has one unique code. The code holds only their ID, so it is safe to share.</p>
+      <div class="btn-row">
+        <button class="btn primary" data-act="dl-zip" id="btnZip"></button>
+        <button class="btn" data-act="dl-cards" id="btnCards"></button>
+        <button class="btn" data-act="dl-register" id="btnReg"></button>
+      </div>
+      <p class="hint" id="bulkProgress"></p>
+    </div>
+    <div class="m-list" id="mList"></div>
+    <div class="count-line" id="mCount"></div>
+  </section>
+
+  <!-- SESSIONS -->
+  <section class="view" id="v-sessions" hidden></section>
+</main>
+
+<nav class="tabs tabs-bottom" data-nav aria-label="Sections"></nav>
+</div>
+<div id="overlay" hidden></div>
+<div id="toast" hidden role="status" aria-live="polite"></div>
+<input type="file" id="importFile" accept="application/json,.json" hidden>
+<input type="file" id="importXlsx" accept=".xlsx,.xls" hidden>
+
+<script>
+(function(){
+'use strict';
+
+/* ================= data ================= */
+const BASE_MEMBERS = [{"id":"CFM26-001","name":"Kadeeja Jasima CP","status":"Karkoon","unit":"Mumtaz Vanitha","wing":"Women"},{"id":"CFM26-002","name":"Ruxana Shanawaz","status":"Karkoon","unit":"Mumtaz Vanitha","wing":"Women"},{"id":"CFM26-003","name":"Shaida Naseem","status":"Active Associate","unit":"Mumtaz Vanitha","wing":"Women"},{"id":"CFM26-004","name":"Safeen Jaseer","status":"Active Associate","unit":"Mumtaz Vanitha","wing":"Women"},{"id":"CFM26-005","name":"Sana Zainudheen","status":"Active Associate","unit":"Mumtaz Vanitha","wing":"Women"},{"id":"CFM26-006","name":"Shahrooba Majeed","status":"Active Associate","unit":"Mumtaz Vanitha","wing":"Women"},{"id":"CFM26-007","name":"Afshan Shareef","status":"Active Associate","unit":"Mumtaz Vanitha","wing":"Women"},{"id":"CFM26-008","name":"Nizwa Hamed","status":"Active Associate","unit":"Mumtaz Vanitha","wing":"Women"},{"id":"CFM26-009","name":"Najeera Sajid","status":"Active Associate","unit":"Mumtaz Vanitha","wing":"Women"},{"id":"CFM26-010","name":"Leena","status":"Active Associate","unit":"Mumtaz Vanitha","wing":"Women"},{"id":"CFM26-011","name":"Thahira Shanavas","status":"Active Associate","unit":"Mumtaz Vanitha","wing":"Women"},{"id":"CFM26-012","name":"Shyni Sharfi","status":"Active Associate","unit":"Mumtaz Vanitha","wing":"Women"},{"id":"CFM26-013","name":"Hafeel","status":"Karkoon","unit":"Wadi Adai","wing":"Men"},{"id":"CFM26-014","name":"Ashraf","status":"Karkoon","unit":"Wadi Adai","wing":"Men"},{"id":"CFM26-015","name":"Iqbal","status":"Active Associate","unit":"Wadi Adai","wing":"Men"},{"id":"CFM26-016","name":"Jaseer","status":"Active Associate","unit":"Wadi Adai","wing":"Men"},{"id":"CFM26-017","name":"Naseem","status":"Active Associate","unit":"Wadi Adai","wing":"Men"},{"id":"CFM26-018","name":"Shajeer","status":"Karkoon","unit":"Wadi Adai","wing":"Men"},{"id":"CFM26-019","name":"Jamal","status":"Rukun","unit":"Wadi Adai","wing":"Men"},{"id":"CFM26-020","name":"Sajid","status":"Karkoon","unit":"Wadi Adai","wing":"Men"},{"id":"CFM26-021","name":"Moosa","status":"Karkoon","unit":"Wadi Adai","wing":"Men"},{"id":"CFM26-022","name":"Fiyas Maliakkal","status":"Karkoon","unit":"Baithul Falaj","wing":"Men"},{"id":"CFM26-023","name":"Shahin Kunhi","status":"Active Associate","unit":"Baithul Falaj","wing":"Men"},{"id":"CFM26-024","name":"Jaseem Ameer","status":"Active Associate","unit":"Baithul Falaj","wing":"Men"},{"id":"CFM26-025","name":"Shereef Mohammed Ali","status":"Active Associate","unit":"Baithul Falaj","wing":"Men"},{"id":"CFM26-026","name":"Shanavaz","status":"Karkoon","unit":"Baithul Falaj","wing":"Men"},{"id":"CFM26-027","name":"C.Naushad Edappal-Kololamba","status":"Rukun","unit":"Baithul Falaj","wing":"Men"},{"id":"CFM26-028","name":"Shajahan","status":"Active Associate","unit":"Baithul Falaj","wing":"Men"},{"id":"CFM26-029","name":"Anish Padipurackal","status":"Active Associate","unit":"Sahil","wing":"Men"},{"id":"CFM26-030","name":"Arshad Peringala","status":"Rukun","unit":"Sahil","wing":"Men"},{"id":"CFM26-031","name":"Said Ali","status":"Karkoon","unit":"Sahil","wing":"Men"},{"id":"CFM26-032","name":"Ashik Said","status":"Active Associate","unit":"Sahil","wing":"Men"},{"id":"CFM26-033","name":"Ahmed Nithin","status":"Active Associate","unit":"Sahil","wing":"Men"},{"id":"CFM26-034","name":"Aslam","status":"Karkoon","unit":"Sahil","wing":"Men"},{"id":"CFM26-035","name":"Irfan","status":"Active Associate","unit":"Sahil","wing":"Men"},{"id":"CFM26-036","name":"Mohammed Yousuf","status":"Active Associate","unit":"Sahil","wing":"Men"},{"id":"CFM26-037","name":"Salam Asad","status":"Active Associate","unit":"Sahil","wing":"Men"},{"id":"CFM26-038","name":"Shefeek","status":"Active Associate","unit":"Sahil","wing":"Men"},{"id":"CFM26-039","name":"Shahbas","status":"Active Associate","unit":"Sahil","wing":"Men"},{"id":"CFM26-040","name":"Kassim","status":"Active Associate","unit":"Sahil","wing":"Men"},{"id":"CFM26-041","name":"Shihab","status":"Active Associate","unit":"Sahil","wing":"Men"},{"id":"CFM26-042","name":"Tarif","status":"Active Associate","unit":"Sahil","wing":"Men"},{"id":"CFM26-043","name":"Nisahudheen","status":"Active Associate","unit":"Sahil","wing":"Men"},{"id":"CFM26-044","name":"Abdul Aziz","status":"Active Associate","unit":"Sahil","wing":"Men"},{"id":"CFM26-045","name":"Abitha Ashraf","status":"Karkoon","unit":"Wadi Adai Vanitha","wing":"Women"},{"id":"CFM26-046","name":"Sulaiktha Yakoob","status":"Rukun","unit":"Wadi Adai Vanitha","wing":"Women"},{"id":"CFM26-047","name":"Sulaikha Ummer","status":"Karkoon","unit":"Wadi Adai Vanitha","wing":"Women"},{"id":"CFM26-048","name":"Hafnida Hafeel","status":"Active Associate","unit":"Wadi Adai Vanitha","wing":"Women"},{"id":"CFM26-049","name":"Bisna Shanis","status":"Active Associate","unit":"Wadi Adai Vanitha","wing":"Women"},{"id":"CFM26-050","name":"Dana Abbas","status":"Active Associate","unit":"Wadi Adai Vanitha","wing":"Women"},{"id":"CFM26-051","name":"Jasmina","status":"Active Associate","unit":"Wadi Adai Vanitha","wing":"Women"},{"id":"CFM26-052","name":"Shereena Nishad","status":"Active Associate","unit":"Wadi Adai Vanitha","wing":"Women"},{"id":"CFM26-053","name":"Sharmenas","status":"Active Associate","unit":"Wadi Adai Vanitha","wing":"Women"},{"id":"CFM26-054","name":"Afsana","status":"Active Associate","unit":"Noor Vanitha","wing":"Women"},{"id":"CFM26-055","name":"Ajla","status":"Active Associate","unit":"Noor Vanitha","wing":"Women"},{"id":"CFM26-056","name":"Hajara","status":"Active Associate","unit":"Noor Vanitha","wing":"Women"},{"id":"CFM26-057","name":"Henna","status":"Active Associate","unit":"Noor Vanitha","wing":"Women"},{"id":"CFM26-058","name":"Hudha","status":"Active Associate","unit":"Noor Vanitha","wing":"Women"},{"id":"CFM26-059","name":"Musabbiha","status":"Active Associate","unit":"Noor Vanitha","wing":"Women"},{"id":"CFM26-060","name":"Raheena Thajudheen","status":"Karkoon","unit":"Noor Vanitha","wing":"Women"},{"id":"CFM26-061","name":"Sabira","status":"Active Associate","unit":"Noor Vanitha","wing":"Women"},{"id":"CFM26-062","name":"Saliha","status":"Active Associate","unit":"Noor Vanitha","wing":"Women"},{"id":"CFM26-063","name":"Sherin","status":"Active Associate","unit":"Noor Vanitha","wing":"Women"},{"id":"CFM26-064","name":"Ameer","status":"Karkoon","unit":"Mutrah","wing":"Men"},{"id":"CFM26-065","name":"Najeeb","status":"Karkoon","unit":"Mutrah","wing":"Men"},{"id":"CFM26-066","name":"Sakeer","status":"Karkoon","unit":"Mutrah","wing":"Men"},{"id":"CFM26-067","name":"Abdul Azeez","status":"Rukun","unit":"Mutrah","wing":"Men"},{"id":"CFM26-068","name":"Abdul Kareem","status":"Active Associate","unit":"Mutrah","wing":"Men"},{"id":"CFM26-069","name":"Afsal","status":"Karkoon","unit":"Mutrah","wing":"Men"},{"id":"CFM26-070","name":"Anwar","status":"Karkoon","unit":"Mutrah","wing":"Men"},{"id":"CFM26-071","name":"Ashiq","status":"Active Associate","unit":"Mutrah","wing":"Men"},{"id":"CFM26-072","name":"Hameed","status":"Karkoon","unit":"Mutrah","wing":"Men"},{"id":"CFM26-073","name":"Kabeer","status":"Active Associate","unit":"Mutrah","wing":"Men"},{"id":"CFM26-074","name":"Kasim","status":"Active Associate","unit":"Mutrah","wing":"Men"},{"id":"CFM26-075","name":"Rashid","status":"Active Associate","unit":"Mutrah","wing":"Men"},{"id":"CFM26-076","name":"Saheer","status":"Karkoon","unit":"Mutrah","wing":"Men"},{"id":"CFM26-077","name":"Shaji","status":"Karkoon","unit":"Mutrah","wing":"Men"},{"id":"CFM26-078","name":"Abdul Shukoor","status":"Active Associate","unit":"Mutrah","wing":"Men"},{"id":"CFM26-079","name":"Jasir","status":"Active Associate","unit":"Mutrah","wing":"Men"},{"id":"CFM26-080","name":"Yusaf","status":"Active Associate","unit":"Mutrah","wing":"Men"},{"id":"CFM26-081","name":"Abdul Rasheed","status":"Karkoon","unit":"Ruwi","wing":"Men"},{"id":"CFM26-082","name":"Shoukath Ali","status":"Karkoon","unit":"Ruwi","wing":"Men"},{"id":"CFM26-083","name":"Ameerudheen","status":"Karkoon","unit":"Ruwi","wing":"Men"},{"id":"CFM26-084","name":"KV Ummer","status":"Karkoon","unit":"Ruwi","wing":"Men"},{"id":"CFM26-085","name":"Munshir","status":"Active Associate","unit":"Ruwi","wing":"Men"},{"id":"CFM26-086","name":"Ashraf CM","status":"Karkoon","unit":"Ruwi","wing":"Men"},{"id":"CFM26-087","name":"Hussain VH","status":"Karkoon","unit":"Ruwi","wing":"Men"},{"id":"CFM26-088","name":"Ravab","status":"Active Associate","unit":"Ruwi","wing":"Men"},{"id":"CFM26-089","name":"Ali Meeran","status":"Karkoon","unit":"Ruwi","wing":"Men"},{"id":"CFM26-090","name":"Muhammed Navas Kayakkal","status":"Active Associate","unit":"Wadi Kabeer","wing":"Men"},{"id":"CFM26-091","name":"Muhammed Azhar","status":"Active Associate","unit":"Wadi Kabeer","wing":"Men"},{"id":"CFM26-092","name":"Akbarsha Abdul Rahman Kunju","status":"Active Associate","unit":"Wadi Kabeer","wing":"Men"},{"id":"CFM26-093","name":"Shamarsha","status":"Active Associate","unit":"Wadi Kabeer","wing":"Men"},{"id":"CFM26-094","name":"Asif Chirakkara","status":"Active Associate","unit":"Wadi Kabeer","wing":"Men"},{"id":"CFM26-095","name":"Fiyaz Maliakkal","status":"Active Associate","unit":"Wadi Kabeer","wing":"Men"},{"id":"CFM26-096","name":"Junaid Karadan","status":"Active Associate","unit":"Wadi Kabeer","wing":"Men"},{"id":"CFM26-097","name":"Shakkeel Hassan","status":"Rukun","unit":"Wadi Kabeer","wing":"Men"},{"id":"CFM26-098","name":"Mohammed Haneef","status":"Karkoon","unit":"Wadi Kabeer","wing":"Men"},{"id":"CFM26-099","name":"Nabeela Naushad","status":"Rukun","unit":"Mutrah Vanitha","wing":"Women"},{"id":"CFM26-100","name":"Haseeba Ansari","status":"Karkoon","unit":"Mutrah Vanitha","wing":"Women"},{"id":"CFM26-101","name":"Risla Afsal","status":"Karkoon","unit":"Mutrah Vanitha","wing":"Women"},{"id":"CFM26-102","name":"Najath Rasil","status":"Karkoon","unit":"Mutrah Vanitha","wing":"Women"},{"id":"CFM26-103","name":"Misriya Nasar","status":"Karkoon","unit":"Mutrah Vanitha","wing":"Women"},{"id":"CFM26-104","name":"Nazim Husain","status":"Karkoon","unit":"Mutrah Vanitha","wing":"Women"},{"id":"CFM26-105","name":"Shameema Subair","status":"Active Associate","unit":"Mutrah Vanitha","wing":"Women"},{"id":"CFM26-106","name":"Sumayya Zavahir","status":"Active Associate","unit":"Mutrah Vanitha","wing":"Women"},{"id":"CFM26-107","name":"Sumayya Faisal","status":"Active Associate","unit":"Mutrah Vanitha","wing":"Women"},{"id":"CFM26-108","name":"Meha Ashir","status":"Active Associate","unit":"Mutrah Vanitha","wing":"Women"},{"id":"CFM26-109","name":"Afseena Arafath","status":"Active Associate","unit":"Mutrah Vanitha","wing":"Women"},{"id":"CFM26-110","name":"Faseena Salaam","status":"Active Associate","unit":"Mutrah Vanitha","wing":"Women"},{"id":"CFM26-111","name":"Fausiya Shukoor","status":"Active Associate","unit":"Mutrah Vanitha","wing":"Women"},{"id":"CFM26-112","name":"Sajida Saleel","status":"Active Associate","unit":"Mutrah Vanitha","wing":"Women"},{"id":"CFM26-113","name":"Suhara Hameed","status":"Active Associate","unit":"Mutrah Vanitha","wing":"Women"},{"id":"CFM26-114","name":"MumthasAbdulkarim","status":"Rukun","unit":"Muscat Vanitha","wing":"Women"},{"id":"CFM26-115","name":"Thahira Noushad","status":"Karkoon","unit":"Muscat Vanitha","wing":"Women"},{"id":"CFM26-116","name":"Shanima Firos","status":"Active Associate","unit":"Muscat Vanitha","wing":"Women"},{"id":"CFM26-117","name":"Sofiya Abdusamad","status":"Active Associate","unit":"Muscat Vanitha","wing":"Women"},{"id":"CFM26-118","name":"Mubeena Noufal","status":"Active Associate","unit":"Muscat Vanitha","wing":"Women"},{"id":"CFM26-119","name":"Thasnim","status":"Active Associate","unit":"Muscat Vanitha","wing":"Women"},{"id":"CFM26-120","name":"Rafeek","status":"Karkoon","unit":"Noor","wing":"Men"},{"id":"CFM26-121","name":"Sageer","status":"Karkoon","unit":"Noor","wing":"Men"},{"id":"CFM26-122","name":"Shahul Hameed","status":"Active Associate","unit":"Noor","wing":"Men"},{"id":"CFM26-123","name":"Rashid","status":"Active Associate","unit":"Noor","wing":"Men"},{"id":"CFM26-124","name":"Adil","status":"Active Associate","unit":"Noor","wing":"Men"},{"id":"CFM26-125","name":"Musthabshir","status":"Active Associate","unit":"Noor","wing":"Men"},{"id":"CFM26-126","name":"Shanavas","status":"Active Associate","unit":"Noor","wing":"Men"},{"id":"CFM26-127","name":"Junaid","status":"Active Associate","unit":"Noor","wing":"Men"},{"id":"CFM26-128","name":"Fausab","status":"Active Associate","unit":"Noor","wing":"Men"},{"id":"CFM26-129","name":"Ubais Keerantakath","status":"Karkoon","unit":"Darsait","wing":"Men"},{"id":"CFM26-130","name":"Moidu CK","status":"Rukun","unit":"Darsait","wing":"Men"},{"id":"CFM26-131","name":"Jafar TP","status":"Rukun","unit":"Darsait","wing":"Men"},{"id":"CFM26-132","name":"Sanoof","status":"Active Associate","unit":"Darsait","wing":"Men"},{"id":"CFM26-133","name":"Anvar","status":"Active Associate","unit":"Darsait","wing":"Men"},{"id":"CFM26-134","name":"Murshid Ponnani","status":"Active Associate","unit":"Darsait","wing":"Men"},{"id":"CFM26-135","name":"Farhan","status":"Active Associate","unit":"Darsait","wing":"Men"},{"id":"CFM26-136","name":"Ali Bashar","status":"Active Associate","unit":"Darsait","wing":"Men"},{"id":"CFM26-137","name":"Zahid","status":"Active Associate","unit":"Darsait","wing":"Men"},{"id":"CFM26-138","name":"Haris","status":"Active Associate","unit":"Darsait","wing":"Men"},{"id":"CFM26-139","name":"Safwan","status":"Active Associate","unit":"Darsait","wing":"Men"},{"id":"CFM26-140","name":"Basheer","status":"Active Associate","unit":"Darsait","wing":"Men"},{"id":"CFM26-141","name":"Shakeel Ahmed","status":"Rukun","unit":"Jabir","wing":"Men"},{"id":"CFM26-142","name":"Abubacker","status":"Karkoon","unit":"Jabir","wing":"Men"},{"id":"CFM26-143","name":"Sathar","status":"Karkoon","unit":"Jabir","wing":"Men"},{"id":"CFM26-144","name":"Siddique","status":"Active Associate","unit":"Jabir","wing":"Men"},{"id":"CFM26-145","name":"Abdul Huck","status":"Active Associate","unit":"Jabir","wing":"Men"},{"id":"CFM26-146","name":"Ajmal","status":"Active Associate","unit":"Jabir","wing":"Men"},{"id":"CFM26-147","name":"Iqbal","status":"Active Associate","unit":"Jabir","wing":"Men"},{"id":"CFM26-148","name":"Nasser","status":"Active Associate","unit":"Jabir","wing":"Men"},{"id":"CFM26-149","name":"Razak","status":"Active Associate","unit":"Jabir","wing":"Men"},{"id":"CFM26-150","name":"Rayees","status":"Active Associate","unit":"Jabir","wing":"Men"},{"id":"CFM26-151","name":"Mubarak","status":"Active Associate","unit":"Jabir","wing":"Men"},{"id":"CFM26-152","name":"Anshad Raja","status":"Active Associate","unit":"Jabir","wing":"Men"},{"id":"CFM26-153","name":"Jirshad K","status":"Active Associate","unit":"Jabir","wing":"Men"},{"id":"CFM26-154","name":"Abdul Majeed","status":"Active Associate","unit":"Jabir","wing":"Men"},{"id":"CFM26-155","name":"Mujeeb KT","status":"Karkoon","unit":"Walja","wing":"Men"},{"id":"CFM26-156","name":"Naser Aluva","status":"Karkoon","unit":"Walja","wing":"Men"},{"id":"CFM26-157","name":"Noushad PK","status":"Karkoon","unit":"Walja","wing":"Men"},{"id":"CFM26-158","name":"Faisal VP","status":"Karkoon","unit":"Walja","wing":"Men"},{"id":"CFM26-159","name":"Iqbal","status":"Active Associate","unit":"Walja","wing":"Men"},{"id":"CFM26-160","name":"Shareef TK","status":"Active Associate","unit":"Walja","wing":"Men"},{"id":"CFM26-161","name":"Yasir Arafath","status":"Active Associate","unit":"Walja","wing":"Men"},{"id":"CFM26-162","name":"Anwar Sadath","status":"Karkoon","unit":"Walja","wing":"Men"},{"id":"CFM26-163","name":"Faisal Aluva","status":"Active Associate","unit":"Walja","wing":"Men"},{"id":"CFM26-164","name":"Rishan","status":"Active Associate","unit":"Darsait Vanitha","wing":"Women"},{"id":"CFM26-165","name":"Hamna Parveen","status":"Active Associate","unit":"Darsait Vanitha","wing":"Women"},{"id":"CFM26-166","name":"Fathima Jafar","status":"Rukun","unit":"Darsait Vanitha","wing":"Women"},{"id":"CFM26-167","name":"Safiya","status":"Rukun","unit":"Darsait Vanitha","wing":"Women"},{"id":"CFM26-168","name":"Ridha Anwar","status":"Active Associate","unit":"Darsait Vanitha","wing":"Women"},{"id":"CFM26-169","name":"Raseena","status":"Active Associate","unit":"Darsait Vanitha","wing":"Women"},{"id":"CFM26-170","name":"Wafa","status":"Active Associate","unit":"Darsait Vanitha","wing":"Women"},{"id":"CFM26-171","name":"Shaheena Sanoof","status":"Active Associate","unit":"Darsait Vanitha","wing":"Women"},{"id":"CFM26-172","name":"Nubula","status":"Active Associate","unit":"Darsait Vanitha","wing":"Women"},{"id":"CFM26-173","name":"Zainaba","status":"Active Associate","unit":"Darsait Vanitha","wing":"Women"},{"id":"CFM26-174","name":"Rahima","status":"Active Associate","unit":"Darsait Vanitha","wing":"Women"},{"id":"CFM26-175","name":"Nadisha Murshaid","status":"Active Associate","unit":"Darsait Vanitha","wing":"Women"},{"id":"CFM26-176","name":"Najeema Basheer","status":"Active Associate","unit":"Darsait Vanitha","wing":"Women"},{"id":"CFM26-177","name":"Saleema","status":"Active Associate","unit":"Darsait Vanitha","wing":"Women"},{"id":"CFM26-178","name":"Vaza Vija","status":"Active Associate","unit":"Darsait Vanitha","wing":"Women"},{"id":"CFM26-179","name":"Nihala","status":"Active Associate","unit":"Darsait Vanitha","wing":"Women"},{"id":"CFM26-180","name":"Zareena","status":"Active Associate","unit":"Darsait Vanitha","wing":"Women"},{"id":"CFM26-181","name":"Fathima Rajna","status":"Active Associate","unit":"Darsait Vanitha","wing":"Women"},{"id":"CFM26-182","name":"Sakeena","status":"Active Associate","unit":"Darsait Vanitha","wing":"Women"},{"id":"CFM26-183","name":"Jeseera","status":"Active Associate","unit":"Darsait Vanitha","wing":"Women"},{"id":"CFM26-184","name":"Abdul Gafoor TP","status":"Rukun","unit":"Kuwaiti","wing":"Men"},{"id":"CFM26-185","name":"Amanulla","status":"Active Associate","unit":"Kuwaiti","wing":"Men"},{"id":"CFM26-186","name":"Ansari","status":"Karkoon","unit":"Kuwaiti","wing":"Men"},{"id":"CFM26-187","name":"Musthafa","status":"Active Associate","unit":"Kuwaiti","wing":"Men"},{"id":"CFM26-188","name":"Abdul Razak MP","status":"Active Associate","unit":"Kuwaiti","wing":"Men"},{"id":"CFM26-189","name":"Noushad","status":"Active Associate","unit":"Kuwaiti","wing":"Men"},{"id":"CFM26-190","name":"Aslam","status":"Active Associate","unit":"Kuwaiti","wing":"Men"},{"id":"CFM26-191","name":"Nahas","status":"Active Associate","unit":"Kuwaiti","wing":"Men"},{"id":"CFM26-192","name":"Yasir","status":"Active Associate","unit":"Kuwaiti","wing":"Men"},{"id":"CFM26-193","name":"Ansar","status":"Active Associate","unit":"Kuwaiti","wing":"Men"},{"id":"CFM26-194","name":"Rafiya Muhajir","status":"Active Associate","unit":"Sahil Vanitha","wing":"Women"},{"id":"CFM26-195","name":"Shaheera","status":"Karkoon","unit":"Sahil Vanitha","wing":"Women"},{"id":"CFM26-196","name":"Fatima Jamal","status":"Rukun","unit":"Sahil Vanitha","wing":"Women"},{"id":"CFM26-197","name":"Suhaila","status":"Active Associate","unit":"Sahil Vanitha","wing":"Women"},{"id":"CFM26-198","name":"Bahiya","status":"Active Associate","unit":"Sahil Vanitha","wing":"Women"},{"id":"CFM26-199","name":"Faseela","status":"Active Associate","unit":"Sahil Vanitha","wing":"Women"},{"id":"CFM26-200","name":"Benu","status":"Karkoon","unit":"Sahil Vanitha","wing":"Women"},{"id":"CFM26-201","name":"Nusaiba","status":"Active Associate","unit":"Sahil Vanitha","wing":"Women"},{"id":"CFM26-202","name":"Jaseena","status":"Active Associate","unit":"Sahil Vanitha","wing":"Women"},{"id":"CFM26-203","name":"Shabnam","status":"Active Associate","unit":"Sahil Vanitha","wing":"Women"},{"id":"CFM26-204","name":"Safana","status":"Active Associate","unit":"Sahil Vanitha","wing":"Women"},{"id":"CFM26-205","name":"Aamina","status":"Active Associate","unit":"Sahil Vanitha","wing":"Women"},{"id":"CFM26-206","name":"Heba","status":"Active Associate","unit":"Sahil Vanitha","wing":"Women"},{"id":"CFM26-207","name":"Sheeba","status":"Active Associate","unit":"Sahil Vanitha","wing":"Women"},{"id":"CFM26-208","name":"Fayisa","status":"Active Associate","unit":"Sahil Vanitha","wing":"Women"},{"id":"CFM26-209","name":"Buseera","status":"Active Associate","unit":"Sahil Vanitha","wing":"Women"},{"id":"CFM26-210","name":"Jaleela","status":"Active Associate","unit":"Sahil Vanitha","wing":"Women"},{"id":"CFM26-211","name":"Adila","status":"Active Associate","unit":"Wadi Kabeer Vanitha","wing":"Women"},{"id":"CFM26-212","name":"Amina","status":"Karkoon","unit":"Wadi Kabeer Vanitha","wing":"Women"},{"id":"CFM26-213","name":"Jubna","status":"Active Associate","unit":"Wadi Kabeer Vanitha","wing":"Women"},{"id":"CFM26-214","name":"Lubaiba","status":"Active Associate","unit":"Wadi Kabeer Vanitha","wing":"Women"},{"id":"CFM26-215","name":"Sumayya","status":"Karkoon","unit":"Wadi Kabeer Vanitha","wing":"Women"},{"id":"CFM26-216","name":"Sheeba Haneef","status":"Karkoon","unit":"Wadi Kabeer Vanitha","wing":"Women"},{"id":"CFM26-217","name":"Shifa","status":"Active Associate","unit":"Wadi Kabeer Vanitha","wing":"Women"},{"id":"CFM26-218","name":"Sheeba Ajmal","status":"Active Associate","unit":"Wadi Kabeer Vanitha","wing":"Women"},{"id":"CFM26-219","name":"Shameena","status":"Active Associate","unit":"Wadi Kabeer Vanitha","wing":"Women"},{"id":"CFM26-220","name":"Raseena","status":"Karkoon","unit":"Wadi Kabeer Vanitha","wing":"Women"},{"id":"CFM26-221","name":"Shabna","status":"Active Associate","unit":"Wadi Kabeer Vanitha","wing":"Women"},{"id":"CFM26-222","name":"Faseela","status":"Active Associate","unit":"Wadi Kabeer Vanitha","wing":"Women"}];
+let MEMBERS = BASE_MEMBERS.map(m=>({...m}));
+let UNITS = [];
+let byId = new Map();
+let nextNum = BASE_MEMBERS.length + 1;      // member numbers are never reused
+let deletedIds = [];
+const TIERS = ['Rukun','Karkoon','Active Associate'];
+const TIER_CLS = {'Rukun':'t-rukun','Karkoon':'t-karkoon','Active Associate':'t-assoc'};
+const TIER_VAR = {'Rukun':'var(--rukun)','Karkoon':'var(--karkoon)','Active Associate':'var(--assoc)'};
+const TIER_HEX = {'Rukun':'#6B3FA0','Karkoon':'#127D9C','Active Associate':'#A87A0E'};
+const WINGS = ['Men','Women'];
+const norm = s => String(s).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g,' ').trim();
+const idNum = id => parseInt(String(id).split('-')[1],10);
+const newId = n => 'CFM26-'+String(n).padStart(3,'0');
+function mintCloudId(){ // collision-safe without a shared counter: random, checked against the live roster
+  let id;
+  do{ id = 'CFM26-'+Math.random().toString(36).slice(2,7).toUpperCase(); }while(byId.has(id));
+  return id;
+}
+function rebuildRoster(){
+  MEMBERS.sort((a,b)=>idNum(a.id)-idNum(b.id));
+  byId = new Map(MEMBERS.map(m=>[m.id,m]));
+  UNITS = [...new Set(MEMBERS.map(m=>m.unit))].sort();
+  MEMBERS.forEach(m=>{ m._h = norm([m.name,m.unit,m.status,m.wing,m.id].join(' ')); });
+  nextNum = Math.max(nextNum, ...MEMBERS.map(m=>idNum(m.id)+1));
+}
+const plain = m => ({id:m.id,name:m.name,status:m.status,unit:m.unit,wing:m.wing});
+const validMember = x => x && /^CFM26-[0-9A-Z]{3,8}$/i.test(x.id||'') && typeof x.name==='string' && x.name.trim() &&
+  TIERS.includes(x.status) && typeof x.unit==='string' && x.unit.trim() && WINGS.includes(x.wing);
+function tidyName(raw){
+  const name = String(raw).replace(/\s+/g,' ').trim().slice(0,80);
+  if(name!==name.toLowerCase() && name!==name.toUpperCase()) return name;
+  return name.split(' ').map(t=> t.length<=2 && /^[a-z]+$/i.test(t) ? t.toUpperCase() : t.charAt(0).toUpperCase()+t.slice(1).toLowerCase()).join(' ');
+}
+const tidyUnit = raw => String(raw).replace(/\s+/g,' ').trim().slice(0,40).split(' ').map(w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ');
+
+/* ================= helpers ================= */
+const $ = (s,r=document)=>r.querySelector(s);
+const $$ = (s,r=document)=>Array.from(r.querySelectorAll(s));
+const esc = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => String(n).padStart(2,'0');
+const fmt1 = n => String(Math.round(n*10)/10);
+const todayStr = () => { const d=new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); };
+const fmtDate = s => { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}); };
+const fmtDay = s => { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d).toLocaleDateString(undefined,{day:'numeric',month:'short'}); };
+const dayStr = t => { const d=new Date(t); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); };
+const fmtTime = t => new Date(t).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});
+const hm = t => { const d=new Date(t); return pad(d.getHours())+':'+pad(d.getMinutes()); };
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+const ICON = {
+  scan:'<path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M8 12h8"/>',
+  chart:'<path d="M5 20V11M12 20V5M19 20v-6"/>',
+  users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><circle cx="17.5" cy="9" r="2.5"/><path d="M17.5 14.5c2.6 0 4.5 1.8 4.5 4.5"/>',
+  calendar:'<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+  check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  undo:'<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
+  download:'<path d="M12 4v11M7 11l5 5 5-5M5 20h14"/>',
+  upload:'<path d="M12 16V5M7 9l5-5 5 5M5 20h14"/>',
+  camera:'<path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  flip:'<path d="M4 9a8 8 0 0 1 14-3l2 2M20 4v4h-4M20 15a8 8 0 0 1-14 3l-2-2M4 20v-4h4"/>',
+  x:'<path d="M6 6l12 12M18 6L6 18"/>',
+  image:'<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4.5 4 3.5 3-2.5 4.5 3.5"/>',
+  vol:'<path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/>',
+  mute:'<path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/>',
+  alert:'<circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/>',
+  trash:'<path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/>',
+  edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+  print:'<path d="M7 9V4h10v5M7 17H4v-6h16v6h-3M7 14h10v6H7z"/>',
+  table:'<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 10h17M9 10v9.5"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>'
+};
+const ic = (n,s=20) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n]}</svg>`;
+const pill = m => `<span class="pill ${TIER_CLS[m.status]}">${esc(m.status)}</span>`;
+
+/* ================= state + storage ================= */
+const KEY = 'cfm26.attendance.v1';
+const state = {
+  tab:'scan', sessions:[], log:[], activeId:null, sound:true, persist:true,
+  dash:{scope:'',wing:'All',status:'All',sort:'rate',list:'present',q:'',limit:50},
+  mem:{q:'',wing:'All',status:'All',unit:'All'}
+};
+let logIdx = new Map();
+const lk = (s,m) => s+'|'+m;
+const reindex = () => { logIdx = new Map(state.log.map(r=>[lk(r.s,r.m),r])); };
+
+function testStorage(){
+  try{ localStorage.setItem(KEY+'.t','1'); localStorage.removeItem(KEY+'.t'); return true; }catch(e){ return false; }
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(KEY);
+    if(!raw) return;
+    const d = JSON.parse(raw);
+    if(Array.isArray(d.sessions) && Array.isArray(d.log)){
+      state.sessions = d.sessions; state.log = d.log;
+      state.activeId = d.activeId || null; state.sound = d.sound !== false;
+    }
+  }catch(e){}
+}
+function save(){
+  try{
+    localStorage.setItem(KEY, JSON.stringify({sessions:state.sessions,log:state.log,activeId:state.activeId,sound:state.sound}));
+  }catch(e){
+    if(state.persist){ state.persist=false; renderBanner(); }
+  }
+}
+
+const ROSTER_KEY = 'cfm26.roster.v1';
+function loadRoster(){
+  try{
+    const raw = localStorage.getItem(ROSTER_KEY);
+    if(raw){
+      const d = JSON.parse(raw);
+      if(d && Array.isArray(d.members)){
+        const ok = d.members.filter(validMember).map(plain);
+        if(ok.length){ MEMBERS = ok; }
+        if(Number.isFinite(d.next)) nextNum = Math.max(nextNum,d.next);
+        if(Array.isArray(d.deleted)) deletedIds = d.deleted.filter(x=>typeof x==='string');
+      }
+    }
+  }catch(e){}
+  rebuildRoster();
+}
+function saveRoster(){
+  try{ localStorage.setItem(ROSTER_KEY, JSON.stringify({members:MEMBERS.map(plain),next:nextNum,deleted:deletedIds})); }
+  catch(e){ if(state.persist){ state.persist=false; renderBanner(); } }
+}
+
+/* ================= cloud sync (shared "db" capability) =================
+   When available, members and sessions/check-ins live in a shared database
+   so every phone sees the same data. state.sessions/state.log/MEMBERS stay
+   the single source the rest of the app renders from either way; in cloud
+   mode they are kept in lockstep with the server by onSnapshot listeners,
+   and every write below is a best-effort mirror of a local change already
+   made (so the UI never waits on the network). */
+let cloud = null;
+let FORUM_ID = null, CURRENT_UID = null;
+const forumCol = name => cloud.collection('forums/'+FORUM_ID+'/'+name);
+state.cloudStatus = 'off'; // off | connecting | synced | error
+function sessionAttendanceNow(sid){
+  const a={}; for(const r of state.log) if(r.s===sid) a[r.m]={t:r.t,src:r.src}; return a;
+}
+async function connectFirestore(){
+  if(cloud) return true;
+  let c=null;
+  try{ c = await Promise.race([window.__fbReady, sleep(8000).then(()=>null)]); }catch(e){ c=null; }
+  if(!c) return false;
+  cloud = c; return true;
+}
+async function initForumApp(forumId){
+  FORUM_ID = forumId;
+  if(!cloud){ state.cloudStatus='off'; renderSyncStatus(); return; } // no connection: stay on the local copy already loaded by enterForum()
+  state.cloudStatus='connecting'; renderSyncStatus();
+  try{
+    const snap = await forumCol('members').limit(1).get();
+    if(snap.empty){ for(const m of BASE_MEMBERS){ await forumCol('members').doc(m.id).set({...plain(m),active:true}); } }
+    const ssnap = await forumCol('sessions').limit(1).get();
+    if(ssnap.empty){
+      const date=todayStr(), id=makeSid('General meeting',date);
+      await forumCol('sessions').doc(id).set({name:'General meeting',date,attendance:{}});
+    }
+  }catch(e){ /* seeding is best-effort; the polls below still bring in whatever exists */ }
+  await pollMembers(); await pollSessionsList();
+  startPolling();
+}
+let pendingMemberOps = new Map(), pendingSessionOps = new Map(); // id -> {op:'upsert'|'delete', ts}
+                                                                  // guards a just-made local change from being
+                                                                  // clobbered by a slower, already-in-flight poll
+                                                                  // that started before the change and reports stale data
+function reconcilePending(map, freshHas){
+  const now=Date.now();
+  for(const [id,p] of map){
+    if((p.op==='upsert' && freshHas(id)) || (p.op==='delete' && !freshHas(id)) || now-p.ts>60000) map.delete(id);
+  }
+}
+function applyMembersSnapshot(snap){
+  const fresh = new Map();
+  snap.docs.forEach(d=>{ const v=d.data()||{}; if(v.active!==false) fresh.set(d.id,{id:d.id,...v}); });
+  reconcilePending(pendingMemberOps, id=>fresh.has(id));
+  const list=[];
+  for(const [id,v] of fresh){ if(pendingMemberOps.get(id)?.op!=='delete') list.push(v); }
+  for(const [id,p] of pendingMemberOps){ if(p.op==='upsert' && !fresh.has(id)){ const local=byId.get(id); if(local) list.push(local); } }
+  MEMBERS = list;
+  rebuildRoster(); refreshUnitFilter(); refresh();
+  saveRoster();
+}
+function applySessionsSnapshot(snap){
+  const fresh = new Map(), freshLog = new Map();
+  snap.docs.forEach(d=>{
+    const v=d.data()||{}; fresh.set(d.id,{id:d.id,name:v.name,date:v.date});
+    const arr=[]; const att=v.attendance||{};
+    for(const mid in att){ const e=att[mid]||{}; arr.push({m:mid,s:d.id,t:e.t,src:e.src}); }
+    freshLog.set(d.id, arr);
+  });
+  reconcilePending(pendingSessionOps, id=>fresh.has(id));
+  const sessions=[], log=[];
+  for(const [id,v] of fresh){
+    if(pendingSessionOps.get(id)?.op==='delete') continue;
+    sessions.push(v); (freshLog.get(id)||[]).forEach(r=>log.push(r));
+  }
+  for(const [id,p] of pendingSessionOps){
+    if(p.op==='upsert' && !fresh.has(id)){
+      const local = state.sessions.find(s=>s.id===id);
+      if(local){ sessions.push(local); state.log.filter(r=>r.s===id).forEach(r=>log.push(r)); }
+    }
+  }
+  state.sessions=sessions; state.log=log; reindex(); ensureSession(false); refresh();
+  save();
+}
+/* Polling, not a live/open connection — a dropped mobile connection just means the
+   next tick tries again, rather than a listener silently dying and never recovering.
+   Costs are tiered so a background tab stays cheap: the active session (small, changes
+   constantly) is polled often; the full member list and session list (larger, change
+   rarely) are polled seldom in the background and refreshed on demand when their tab
+   is actually open. */
+async function pollMembers(){
+  if(!cloud) return;
+  try{ applyMembersSnapshot(await forumCol('members').get()); state.cloudStatus='synced'; }
+  catch(e){ state.cloudStatus='error'; state.cloudErr=e; }
+  renderSyncStatus();
+}
+async function pollSessionsList(){
+  if(!cloud) return;
+  try{ applySessionsSnapshot(await forumCol('sessions').get()); state.cloudStatus='synced'; }
+  catch(e){ state.cloudStatus='error'; state.cloudErr=e; }
+  renderSyncStatus();
+}
+async function pollActiveSession(){
+  if(!cloud || !state.activeId) return;
+  await flushOutbox();
+  try{
+    const d = await forumCol('sessions').doc(state.activeId).get();
+    if(d.exists){
+      const v=d.data()||{}, idx=state.sessions.findIndex(s=>s.id===state.activeId);
+      if(idx>=0) state.sessions[idx]={id:state.activeId,name:v.name,date:v.date};
+      else state.sessions.push({id:state.activeId,name:v.name,date:v.date});
+      state.log = state.log.filter(r=>r.s!==state.activeId);
+      const att=v.attendance||{};
+      for(const mid in att){ const e=att[mid]||{}; state.log.push({m:mid,s:state.activeId,t:e.t,src:e.src}); }
+      reindex(); if(state.tab==='scan') refresh();
+      state.cloudStatus='synced';
+    }
+    renderSyncStatus();
+  }catch(e){ state.cloudStatus='error'; state.cloudErr=e; renderSyncStatus(); }
+}
+let pollTimers=[];
+/* Firestore's free plan allows 50,000 reads a day, so background polling stops once nobody has
+   touched the page for 30 minutes (a tab left open overnight used to burn through the whole quota),
+   and the big member list is only re-read every 15 minutes (or instantly when its tab is opened). */
+const IDLE_MS = 30*60*1000;
+let lastActive = Date.now(), pollHooksAdded = false;
+const isLive = () => !document.hidden && Date.now()-lastActive < IDLE_MS;
+function noteActivity(){
+  const wasIdle = Date.now()-lastActive >= IDLE_MS;
+  lastActive = Date.now();
+  if(wasIdle && cloud) reconcileCloud();
+}
+['pointerdown','keydown','touchstart'].forEach(ev=>document.addEventListener(ev, noteActivity, {passive:true}));
+function startPolling(){
+  stopPolling();
+  pollTimers.push(setInterval(()=>{ if(isLive()) pollActiveSession(); }, 5000));
+  pollTimers.push(setInterval(()=>{ if(isLive()) pollMembers(); }, 15*60*1000));
+  pollTimers.push(setInterval(()=>{ if(isLive() && (state.tab==='dash'||state.tab==='sessions')) pollSessionsList(); }, 15000));
+  if(!pollHooksAdded){
+    pollHooksAdded = true;
+    document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) reconcileCloud(); });
+    window.addEventListener('online', reconcileCloud);
+  }
+}
+function stopPolling(){ pollTimers.forEach(clearInterval); pollTimers=[]; }
+async function reconcileCloud(){ // an immediate top-up, on top of the regular ticks above
+  if(!cloud) return;
+  await pollActiveSession();
+  if(state.tab==='members') await pollMembers();
+  if(state.tab==='dash'||state.tab==='sessions') await pollSessionsList();
+}
+function renderSyncStatus(){
+  const dot=$('.chip .dot'); if(!dot) return;
+  dot.style.background = state.cloudStatus==='synced' ? 'var(--ok-text)' : state.cloudStatus==='error' ? 'var(--bad)' : state.cloudStatus==='connecting' ? 'var(--assoc)' : 'var(--muted)';
+  $('#chipText').title = state.cloudStatus==='synced' ? 'Synced across phones' : state.cloudStatus==='connecting' ? 'Connecting…' : state.cloudStatus==='error' ? 'Sync problem — changes stay on this device for now' : 'Saved on this device only';
+  if(state.tab==='sessions') renderSessions();
+}
+let outbox = []; // check-ins that failed to reach the server; kept locally and retried quietly, never dropped
+async function cloudMarkWrite(sid,mid,rec){
+  try{ await forumCol('sessions').doc(sid).update({attendance:{[mid]:{t:rec.t,src:rec.src}}}); }
+  catch(e){
+    if(e && e.code==='invalid_argument'){ // session doc missing on the server yet — create then retry once
+      try{ const s=state.sessions.find(x=>x.id===sid); await forumCol('sessions').doc(sid).set({name:s?s.name:sid,date:s?s.date:todayStr(),attendance:sessionAttendanceNow(sid)}); return; }catch(e2){}
+    }
+    outbox.push({sid,mid,rec}); // keep the check-in as-is on screen; sync it in later once the connection allows
+  }
+}
+async function flushOutbox(){
+  if(!cloud || !outbox.length) return;
+  const items=outbox; outbox=[];
+  for(const {sid,mid,rec} of items){
+    try{ await forumCol('sessions').doc(sid).update({attendance:{[mid]:{t:rec.t,src:rec.src}}}); }
+    catch(e){ outbox.push({sid,mid,rec}); }
+  }
+}
+async function cloudUnmarkWrite(sid,mid){
+  try{ const s=state.sessions.find(x=>x.id===sid); await forumCol('sessions').doc(sid).set({name:s?s.name:sid,date:s?s.date:todayStr(),attendance:sessionAttendanceNow(sid)}); }
+  catch(e){ toast('Could not remove that check-in — check your connection.','bad'); }
+}
+async function cloudCreateSession(id,name,date){
+  try{ await forumCol('sessions').doc(id).set({name,date,attendance:{}}); }
+  catch(e){ toast('Could not create that session — check your connection.','bad'); }
+}
+async function cloudUpdateSession(id,name,date){
+  try{ await forumCol('sessions').doc(id).update({name,date}); }
+  catch(e){ toast('Could not save that session — check your connection.','bad'); }
+}
+async function cloudDeleteSession(id){
+  try{ await forumCol('sessions').doc(id).delete(); }
+  catch(e){ toast('Could not delete that session — check your connection.','bad'); }
+}
+async function cloudClearCheckins(){
+  try{ for(const s of state.sessions){ await forumCol('sessions').doc(s.id).update({attendance:{}}).catch(()=>{}); } }
+  catch(e){}
+}
+async function cloudAddMember(id,name,status,unit,wing){
+  try{ await forumCol('members').doc(id).set({name,status,unit,wing,active:true}); }
+  catch(e){ toast('Could not add that member — check your connection.','bad'); }
+}
+async function cloudEditMember(id,name,status,unit,wing){
+  try{ await forumCol('members').doc(id).update({name,status,unit,wing}); }
+  catch(e){ toast('Could not save that member — check your connection.','bad'); }
+}
+async function cloudDeleteMember(id){
+  try{
+    await forumCol('members').doc(id).delete();
+    for(const s of state.sessions){
+      if(state.log.some(r=>r.s===s.id && r.m===id)){
+        const a={}; for(const r of state.log) if(r.s===s.id && r.m!==id) a[r.m]={t:r.t,src:r.src};
+        await forumCol('sessions').doc(s.id).set({name:s.name,date:s.date,attendance:a}).catch(()=>{});
+      }
+    }
+  }catch(e){ toast('Could not delete that member — check your connection.','bad'); }
+}
+async function cloudRestoreRoster(){
+  try{
+    const baseIds=new Set(BASE_MEMBERS.map(m=>m.id));
+    const snap = await forumCol('members').get();
+    for(const b of BASE_MEMBERS){ // re-create every base member, including ones fully deleted (not just edited)
+      pendingMemberOps.set(b.id,{op:'upsert',ts:Date.now()});
+      await forumCol('members').doc(b.id).set({...plain(b),active:true}).catch(()=>{});
+    }
+    for(const d of snap.docs){
+      if(!baseIds.has(d.id)){
+        pendingMemberOps.set(d.id,{op:'delete',ts:Date.now()});
+        await forumCol('members').doc(d.id).delete().catch(()=>{});
+        for(const s of state.sessions){
+          if(state.log.some(r=>r.s===s.id && r.m===d.id)){
+            const a={}; for(const r of state.log) if(r.s===s.id && r.m!==d.id) a[r.m]={t:r.t,src:r.src};
+            pendingSessionOps.set(s.id,{op:'upsert',ts:Date.now()});
+            await forumCol('sessions').doc(s.id).set({name:s.name,date:s.date,attendance:a}).catch(()=>{});
+          }
+        }
+      }
+    }
+  }catch(e){ toast('Could not restore the member list — check your connection.','bad'); }
+}
+
+/* ================= sessions ================= */
+const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,32) || 'session';
+const makeSid = (name,date) => date+'-'+slug(name);
+const sortedSessions = () => [...state.sessions].sort((a,b)=>b.date.localeCompare(a.date)||a.name.localeCompare(b.name));
+const activeSession = () => state.sessions.find(s=>s.id===state.activeId);
+const countIn = sid => { let n=0; for(const r of state.log) if(r.s===sid && byId.has(r.m)) n++; return n; };
+function ensureSession(createIfEmpty=true){
+  if(!state.sessions.length){
+    if(!createIfEmpty) return; // cloud mode: an empty snapshot is transient — seeding creates the first session
+    const date=todayStr(); const s={id:makeSid('General meeting',date),name:'General meeting',date};
+    state.sessions.push(s); state.activeId=s.id;
+  }
+  if(!state.sessions.some(s=>s.id===state.activeId)) state.activeId = sortedSessions()[0].id;
+}
+
+/* ================= attendance ================= */
+function mark(mid,src,sid){
+  sid = sid || state.activeId;
+  const k = lk(sid,mid), ex = logIdx.get(k);
+  if(ex) return {dup:true,rec:ex};
+  const rec = {m:mid,s:sid,t:Date.now(),src};
+  lastActive = Date.now();
+  state.log.push(rec); logIdx.set(k,rec);
+  if(cloud) cloudMarkWrite(sid,mid,rec); save();
+  return {dup:false,rec};
+}
+function unmark(mid,sid){
+  sid = sid || state.activeId;
+  const k = lk(sid,mid);
+  if(!logIdx.has(k)) return;
+  logIdx.delete(k);
+  state.log = state.log.filter(r=>!(r.s===sid && r.m===mid));
+  if(cloud) cloudUnmarkWrite(sid,mid); save();
+}
+function memberFromCode(raw){
+  const mm = /CFM26-([0-9A-Z]{3,8})/i.exec(String(raw).trim());
+  if(!mm) return null;
+  let suf = mm[1].toUpperCase();
+  if(/^\d+$/.test(suf)) suf = String(+suf).padStart(3,'0'); // legacy sequential ids
+  return byId.get('CFM26-'+suf) || null;
+}
+
+/* ================= feedback ================= */
+let actx = null;
+function tone(freq,dur,when=0,type='sine',vol=.18){
+  if(!state.sound) return;
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended') actx.resume();
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type=type; o.frequency.value=freq; o.connect(g); g.connect(actx.destination);
+    const t0=actx.currentTime+when;
+    g.gain.setValueAtTime(vol,t0); g.gain.exponentialRampToValueAtTime(.0001,t0+dur);
+    o.start(t0); o.stop(t0+dur+.03);
+  }catch(e){}
+}
+const vib = p => { try{ if(navigator.vibrate) navigator.vibrate(p); }catch(e){} };
+function feedback(kind){
+  if(kind==='ok'){ tone(880,.12); tone(1320,.18,.11); vib(60); }
+  else if(kind==='dup'){ tone(520,.1); tone(520,.1,.17); vib([40,60,40]); }
+  else { tone(170,.4,0,'sawtooth',.12); vib(220); }
+}
+
+/* ================= libraries (loaded from CDN) ================= */
+const LIBS = {
+  qr:['https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js','https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js'],
+  jsqr:['https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js'],
+  zip:['https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js','https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'],
+  xlsx:['https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js','https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'],
+  jspdf:['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js','https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js']
+};
+const libP = {};
+function lib(name){
+  return libP[name] || (libP[name] = new Promise(res=>{
+    const urls = LIBS[name]; let i=0;
+    const next = () => {
+      if(i>=urls.length) return res(false);
+      const s=document.createElement('script'); s.src=urls[i++];
+      s.onload=()=>res(true); s.onerror=()=>{ s.remove(); next(); };
+      document.head.appendChild(s);
+    };
+    next();
+  }));
+}
+
+/* ================= QR rendering ================= */
+const qrCache = new Map();
+function getQr(id){
+  let q = qrCache.get(id);
+  if(q) return q;
+  const g = qrcode(0,'M'); g.addData(id); g.make();
+  const n = g.getModuleCount(), bits = new Uint8Array(n*n);
+  for(let r=0;r<n;r++) for(let c=0;c<n;c++) bits[r*n+c] = g.isDark(r,c)?1:0;
+  q = {n,bits}; qrCache.set(id,q); return q;
+}
+function qrSvg(id,margin=4){
+  if(typeof qrcode==='undefined') return '';
+  const q = getQr(id), size = q.n+margin*2; let d='';
+  for(let r=0;r<q.n;r++) for(let c=0;c<q.n;c++) if(q.bits[r*q.n+c]) d+=`M${c+margin} ${r+margin}h1v1h-1z`;
+  return `<svg viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges" role="img" aria-label="QR code ${id}"><rect width="${size}" height="${size}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+}
+function cardCanvas(m){
+  const W=720,H=920, cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const g=cv.getContext('2d'), FF='"Instrument Sans",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif';
+  g.fillStyle='#fff'; g.fillRect(0,0,W,H);
+  g.fillStyle=TIER_HEX[m.status]; g.fillRect(0,0,W,22);
+  const q=getQr(m.id), cell=Math.floor(520/q.n), qs=cell*q.n, qx=Math.floor((W-qs)/2), qy=80;
+  g.fillStyle='#000';
+  for(let r=0;r<q.n;r++) for(let c=0;c<q.n;c++) if(q.bits[r*q.n+c]) g.fillRect(qx+c*cell,qy+r*cell,cell,cell);
+  g.textAlign='center'; g.textBaseline='alphabetic';
+  let fs=56; g.fillStyle='#10222B';
+  do{ g.font=`700 ${fs}px ${FF}`; fs-=2; }while(g.measureText(m.name).width>W-60 && fs>26);
+  g.fillText(m.name,W/2,690);
+  g.fillStyle='#3E5560'; g.font=`500 34px ${FF}`; g.fillText(m.unit,W/2,746);
+  g.fillStyle=TIER_HEX[m.status]; g.font=`700 32px ${FF}`; g.fillText(m.status,W/2,796);
+  g.fillStyle='#10222B'; g.font=`700 40px ${FF}`; g.fillText(m.id,W/2,868);
+  return cv;
+}
+const canvasBlob = cv => new Promise(res=>cv.toBlob(res,'image/png'));
+const fileBase = m => m.id+'_'+m.name.replace(/[^A-Za-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+
+/* ================= downloads ================= */
+let dlCap = null;
+if(window.claude && typeof window.claude.use==='function'){
+  try{ dlCap = window.claude.use('downloads'); }catch(e){ dlCap = null; }
+}
+async function saveFile(filename,data){
+  let dl = null;
+  if(dlCap){ dl = await Promise.race([dlCap.catch(()=>null), sleep(2500).then(()=>null)]); }
+  if(dl){
+    try{ await dl.save({filename,data}); toast('Saved '+filename); }
+    catch(e){ if(!(e && e.code==='declined')) toast('Could not save the file ('+((e&&e.code)||'error')+').','bad'); }
+    return;
+  }
+  try{
+    const blob = data instanceof Blob ? data : new Blob([data],{type:'application/octet-stream'});
+    const url = URL.createObjectURL(blob), a=document.createElement('a');
+    a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+  }catch(e){ toast('Downloads are not available in this view.','bad'); }
+}
+function toCsv(rows){
+  return '\uFEFF'+rows.map(r=>r.map(v=>{
+    v = v==null ? '' : String(v);
+    return /[",\r\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
+  }).join(',')).join('\r\n');
+}
+
+/* ================= toast + modal ================= */
+let toastT = 0;
+function toast(msg,kind){
+  const t=$('#toast'); t.textContent=msg; t.className=kind||''; t.hidden=false;
+  clearTimeout(toastT); toastT=setTimeout(()=>{ t.hidden=true; },3200);
+}
+let modalCtx = null;
+function openModal(html,ctx){
+  modalCtx = ctx || null;
+  const ov=$('#overlay');
+  ov.innerHTML = `<div class="scrim" data-close></div><div class="sheet" role="dialog" aria-modal="true">${html}</div>`;
+  ov.hidden=false;
+  const f = $('.sheet input, .sheet .btn.primary, .sheet .sheet-x', ov); if(f) f.focus({preventScroll:true});
+}
+function closeModal(){
+  const ov=$('#overlay'); ov.hidden=true; ov.innerHTML='';
+  if(modalCtx && modalCtx.resolve){ const r=modalCtx.resolve; modalCtx=null; r(false); } else modalCtx=null;
+}
+function confirmDialog({title,body,ok,danger}){
+  return new Promise(resolve=>{
+    openModal(`<button class="iconbtn sheet-x" data-close aria-label="Close">${ic('x')}</button>
+      <h2>${esc(title)}</h2><p>${esc(body)}</p>
+      <div class="sheet-actions"><button class="btn" data-close>Cancel</button>
+      <button class="btn ${danger?'danger':'primary'}" data-act="confirm-yes">${esc(ok)}</button></div>`,{resolve});
+  });
+}
+function resolveConfirm(){ if(modalCtx && modalCtx.resolve){ const r=modalCtx.resolve; modalCtx=null; const ov=$('#overlay'); ov.hidden=true; ov.innerHTML=''; r(true); } }
+
+/* ================= navigation + header ================= */
+const TABS = [['scan','Scan','scan'],['dash','Dashboard','chart'],['members','Members','users'],['sessions','Sessions','calendar']];
+function renderNav(){
+  const h = TABS.map(([id,label,icon])=>`<button class="tab" data-tab="${id}" ${state.tab===id?'aria-current="page"':''}>${ic(icon,22)}<span>${label}</span></button>`).join('');
+  $$('[data-nav]').forEach(n=>{ n.innerHTML=h; });
+}
+function renderHead(){
+  const s=activeSession();
+  $('#chipText').textContent = s ? `${s.name} · ${fmtDay(s.date)}` : 'No session';
+}
+function go(tab){
+  if(state.tab==='scan' && tab!=='scan') stopCamera();
+  state.tab=tab;
+  $$('main .view').forEach(v=>{ v.hidden = v.id!=='v-'+tab; });
+  renderNav(); renderHead();
+  if(tab==='scan') renderScan();
+  else if(tab==='dash'){ renderDash(); if(cloud) pollSessionsList(); }
+  else if(tab==='members'){ renderMembersList(); lib('qr').then(ok=>{ if(ok) renderMembersList(); else renderQrBanner(); }); if(cloud) pollMembers(); }
+  else{ renderSessions(); if(cloud) pollSessionsList(); }
+  window.scrollTo(0,0);
+}
+function refresh(){
+  renderHead();
+  if(state.tab==='scan') renderScan();
+  else if(state.tab==='dash') renderDash();
+  else if(state.tab==='members') renderMembersList();
+  else renderSessions();
+}
+function renderBanner(){
+  $('#banner').innerHTML = state.persist ? '' :
+    `<div class="banner">${ic('alert')}<div>This browser is not letting the page save data, so check-ins will be lost when you close it. Export a backup from the Sessions tab often.</div></div>`;
+}
+function renderQrBanner(){
+  $('#qrBanner').innerHTML = `<div class="banner">${ic('alert')}<div>The QR code library could not load. Check your internet connection and reopen the page.</div></div>`;
+}
+
+/* ================= SCAN ================= */
+const scan = {stream:null,raf:0,detector:null,facing:'environment',busy:false,lastT:0,last:{code:'',t:0},cv:null,g:null};
+let verdictT = 0;
+
+function renderScan(){
+  const sel=$('#scanSess');
+  sel.innerHTML = sortedSessions().map(s=>`<option value="${esc(s.id)}" ${s.id===state.activeId?'selected':''}>${esc(s.name)} · ${esc(fmtDay(s.date))}</option>`).join('');
+  const n = countIn(state.activeId);
+  $('#tallyN').textContent = n; $('#tallyOf').textContent = `of ${MEMBERS.length} present`;
+  $('#btnSound').innerHTML = state.sound ? ic('vol')+'Sound on' : ic('mute')+'Sound off';
+  const recent = state.log.filter(r=>r.s===state.activeId).sort((a,b)=>b.t-a.t).slice(0,8);
+  $('#recent').innerHTML = recent.length ? recent.map(r=>{
+    const m=byId.get(r.m); if(!m) return '';
+    return `<div class="result"><div class="who"><b>${esc(m.name)}</b><small>${esc(m.unit)} ${pill(m)}</small></div>
+      <span class="tick">${fmtTime(r.t)}</span>
+      <button class="iconbtn" data-act="unmark" data-id="${m.id}" aria-label="Remove check-in for ${esc(m.name)}">${ic('undo')}</button></div>`;
+  }).join('') : `<div class="empty"><strong>No check-ins yet</strong>Scan a QR code or search for a member above.</div>`;
+  renderLookup();
+  if(!$('#verdict').dataset.kind) showVerdict('idle');
+}
+function showVerdict(kind,d={}){
+  clearTimeout(verdictT);
+  const el=$('#verdict'); el.dataset.kind=kind; el.className='verdict is-'+kind;
+  let icon='scan', title='', name='', meta='', extra='';
+  if(kind==='idle'){
+    icon='scan';
+    name=''; title='Ready to scan';
+    meta=`<span class="v-hint">${scan.stream ? 'Hold a member’s QR code inside the frame.' : 'Start the camera, take a photo, or search by name below.'}</span>`;
+  }else if(kind==='ok' || kind==='dup'){
+    const m=d.m; icon = kind==='ok' ? 'check' : 'alert';
+    title = kind==='ok' ? 'Checked in' : 'Already checked in';
+    name = m.name;
+    meta = `${pill(m)}<span>${esc(m.unit)}</span><span>${kind==='ok'?'':'at '}${fmtTime(d.t)}</span>`;
+    if(kind==='ok') extra = `<button class="v-undo" data-act="unmark" data-id="${m.id}">${ic('undo',16)}Undo</button>`;
+  }else{
+    icon='x'; title=d.title||'Code not recognised'; name=d.name||''; meta=`<span>${esc(d.text||'')}</span>`;
+  }
+  el.innerHTML = `<div class="v-icon">${ic(icon,28)}</div><div class="v-main"><div class="v-title">${esc(title)}</div>${name?`<div class="v-name">${esc(name)}</div>`:''}<div class="v-meta">${meta}</div></div>${extra}`;
+  if(kind!=='idle') verdictT = setTimeout(()=>showVerdict('idle'),8000);
+}
+function handleCode(raw,src){
+  const s=activeSession();
+  if(!s){ showVerdict('bad',{title:'No session',text:'Create a session first.'}); return; }
+  const m = memberFromCode(raw);
+  if(!m){
+    showVerdict('bad',{title:'Code not recognised',text:'This is not a CFM member code.'}); feedback('bad'); return;
+  }
+  const r = mark(m.id,src);
+  showVerdict(r.dup?'dup':'ok',{m,t:r.rec.t});
+  feedback(r.dup?'dup':'ok');
+  if(!r.dup) renderScan2();
+}
+function renderScan2(){ // refresh what changes after a check-in, leaving camera and verdict untouched
+  $('#tallyN').textContent = countIn(state.activeId);
+  renderScanLists();
+}
+function renderScanLists(){
+  const recent = state.log.filter(r=>r.s===state.activeId).sort((a,b)=>b.t-a.t).slice(0,8);
+  $('#recent').innerHTML = recent.length ? recent.map(r=>{
+    const m=byId.get(r.m); if(!m) return '';
+    return `<div class="result"><div class="who"><b>${esc(m.name)}</b><small>${esc(m.unit)} ${pill(m)}</small></div>
+      <span class="tick">${fmtTime(r.t)}</span>
+      <button class="iconbtn" data-act="unmark" data-id="${m.id}" aria-label="Remove check-in for ${esc(m.name)}">${ic('undo')}</button></div>`;
+  }).join('') : `<div class="empty"><strong>No check-ins yet</strong>Scan a QR code or search for a member above.</div>`;
+  renderLookup();
+}
+function searchMembers(q,limit){
+  const toks = norm(q).split(' ').filter(Boolean);
+  if(!toks.length) return [];
+  const out=[]; for(const m of MEMBERS){ if(toks.every(t=>m._h.includes(t))){ out.push(m); if(out.length>=limit) break; } }
+  return out;
+}
+function renderLookup(){
+  const q=$('#lookupQ').value, box=$('#lookupRes');
+  if(!norm(q)){ box.innerHTML=''; return; }
+  const res=searchMembers(q,6);
+  box.innerHTML = res.length ? `<div style="margin-top:8px">`+res.map(m=>{
+    const rec=logIdx.get(lk(state.activeId,m.id));
+    return `<div class="result"><div class="who"><b>${esc(m.name)}</b><small>${esc(m.unit)} ${pill(m)}<span>${m.id}</span></small></div>`+
+      (rec ? `<span class="tick">${ic('check',16)}${fmtTime(rec.t)}</span>` :
+             `<button class="btn small primary" data-act="mark" data-id="${m.id}" data-src="manual">Check in</button>`)+`</div>`;
+  }).join('')+`</div>` : `<p class="hint">No member matches “${esc(q)}”.</p>`;
+}
+
+async function startCamera(){
+  const msg=$('#camMsg');
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    msg.textContent='This browser cannot open the camera here. Use “Scan from photo” or search by name below.'; return;
+  }
+  try{
+    stopCamera();
+    msg.textContent='Starting the camera…';
+    const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:scan.facing},width:{ideal:1280},height:{ideal:720}},audio:false});
+    scan.stream=stream;
+    const v=$('#video'); v.srcObject=stream; await v.play();
+    $('#viewport').classList.add('live');
+    scan.detector=null;
+    if('BarcodeDetector' in window){
+      try{ scan.detector = new BarcodeDetector({formats:['qr_code']}); }catch(e){ scan.detector=null; }
+    }
+    lib('jsqr');
+    scan.raf = requestAnimationFrame(tick);
+    showVerdict('idle');
+  }catch(err){
+    stopCamera();
+    const n = err && err.name;
+    msg.textContent =
+      (n==='NotAllowedError'||n==='SecurityError') ? 'Camera access is blocked. Allow the camera for this page in your browser settings, or open the page in its own browser tab. You can still use “Scan from photo” or search by name.' :
+      (n==='NotFoundError'||n==='OverconstrainedError') ? 'No camera was found on this device. Use “Scan from photo” or search by name.' :
+      n==='NotReadableError' ? 'The camera is in use by another app. Close it and try again.' :
+      'The camera could not start. Use “Scan from photo” or search by name.';
+  }
+}
+function stopCamera(){
+  cancelAnimationFrame(scan.raf); scan.raf=0;
+  if(scan.stream){ scan.stream.getTracks().forEach(t=>t.stop()); scan.stream=null; }
+  const v=$('#video'); if(v){ v.srcObject=null; }
+  const vp=$('#viewport'); if(vp) vp.classList.remove('live');
+  const m=$('#camMsg'); if(m) m.textContent='Point the camera at a member’s QR code and they are checked in automatically.';
+}
+async function tick(now){
+  if(!scan.stream) return;
+  scan.raf = requestAnimationFrame(tick);
+  if(scan.busy || now-scan.lastT<110) return;
+  const v=$('#video'); if(v.readyState<2 || !v.videoWidth) return;
+  scan.lastT=now; scan.busy=true;
+  try{
+    const code = await decodeFrame(v);
+    if(code){
+      const t=Date.now();
+      if(code===scan.last.code && t-scan.last.t<2500){ scan.last.t=t; }
+      else{ scan.last={code,t}; handleCode(code,'scan'); }
+    }
+  }catch(e){}
+  scan.busy=false;
+}
+async function decodeFrame(v){
+  if(scan.detector){
+    try{ const r=await scan.detector.detect(v); if(r&&r.length) return r[0].rawValue; return null; }
+    catch(e){ scan.detector=null; }
+  }
+  if(typeof jsQR==='undefined') return null;
+  const s=Math.min(1,720/Math.max(v.videoWidth,v.videoHeight)), w=Math.round(v.videoWidth*s), h=Math.round(v.videoHeight*s);
+  if(!scan.cv){ scan.cv=document.createElement('canvas'); scan.g=scan.cv.getContext('2d',{willReadFrequently:true}); }
+  scan.cv.width=w; scan.cv.height=h; scan.g.drawImage(v,0,0,w,h);
+  const d=scan.g.getImageData(0,0,w,h);
+  const r=jsQR(d.data,w,h,{inversionAttempts:'dontInvert'});
+  return r ? r.data : null;
+}
+async function scanPhoto(file){
+  if(!file) return;
+  const ok = await lib('jsqr');
+  if(!ok){ toast('The QR reader could not load. Check your connection.','bad'); return; }
+  const url=URL.createObjectURL(file), img=new Image();
+  img.onload=()=>{
+    const s=Math.min(1,1400/Math.max(img.width,img.height));
+    const cv=document.createElement('canvas'); cv.width=Math.round(img.width*s); cv.height=Math.round(img.height*s);
+    const g=cv.getContext('2d',{willReadFrequently:true}); g.drawImage(img,0,0,cv.width,cv.height);
+    const d=g.getImageData(0,0,cv.width,cv.height);
+    const r=jsQR(d.data,d.width,d.height,{inversionAttempts:'attemptBoth'});
+    URL.revokeObjectURL(url);
+    if(r) handleCode(r.data,'photo');
+    else{ showVerdict('bad',{title:'No QR code found',text:'Retake the photo with the code centred and in focus.'}); feedback('bad'); }
+  };
+  img.onerror=()=>{ URL.revokeObjectURL(url); toast('That photo could not be read.','bad'); };
+  img.src=url;
+}
+
+/* ================= MEMBERS ================= */
+function initMemberFilters(){
+  const opt=(v,l,sel)=>`<option value="${esc(v)}">${esc(l)}</option>`;
+  $('#mWing').innerHTML = ['All',...WINGS].map(w=>opt(w,w==='All'?'All':w)).join('');
+  $('#mStatus').innerHTML = ['All',...TIERS].map(w=>opt(w,w==='All'?'All':w)).join('');
+  $('#mUnit').innerHTML = ['All',...UNITS].map(w=>opt(w,w==='All'?'All units':w)).join('');
+  $('#btnAdd').innerHTML = ic('plus')+'Add member';
+  $('#btnZip').innerHTML = ic('download')+'All QR codes (.zip)';
+  $('#btnCards').innerHTML = ic('print')+'Printable cards';
+  $('#btnReg').innerHTML = ic('table')+'Member list (.csv)';
+}
+function renderMembersList(){
+  const f=state.mem, toks=norm(f.q).split(' ').filter(Boolean);
+  const list = MEMBERS.filter(m=>(f.wing==='All'||m.wing===f.wing)&&(f.status==='All'||m.status===f.status)&&(f.unit==='All'||m.unit===f.unit)&&toks.every(t=>m._h.includes(t)));
+  $('#mList').innerHTML = list.map(m=>{
+    const rec = logIdx.get(lk(state.activeId,m.id));
+    return `<button class="m-row" data-act="open-member" data-id="${m.id}">
+      <span class="qr">${qrSvg(m.id,2)}</span>
+      <span class="who"><b>${esc(m.name)}</b><small>${esc(m.unit)}</small><small>${pill(m)}<span>${m.id}</span></small></span>
+      ${rec?`<span class="tick" title="Checked in at ${fmtTime(rec.t)}" aria-label="Checked in at ${fmtTime(rec.t)}">${ic('check',20)}</span>`:''}
+    </button>`;
+  }).join('') || `<div class="empty"><strong>No members match</strong>Clear a filter or try a different search.</div>`;
+  $('#mCount').textContent = `Showing ${list.length} of ${MEMBERS.length} members`;
+}
+function openMember(id){
+  const m=byId.get(id); if(!m) return;
+  const s=activeSession(), rec=s && logIdx.get(lk(s.id,id));
+  const ss=sortedSessions();
+  const attended=ss.filter(x=>logIdx.has(lk(x.id,id))).length;
+  const hist = ss.length ? `<div class="hist"><h3>Attended ${attended} of ${ss.length} session${ss.length===1?'':'s'}</h3><ul>`+
+    ss.slice(0,8).map(x=>{ const r=logIdx.get(lk(x.id,id)); return `<li><span>${esc(x.name)} · ${esc(fmtDay(x.date))}</span><span class="${r?'tick':'muted'}">${r?fmtTime(r.t):'Absent'}</span></li>`; }).join('')+`</ul></div>` : '';
+  openModal(`<button class="iconbtn sheet-x" data-close aria-label="Close">${ic('x')}</button>
+    <div class="idcard" style="--c:${TIER_VAR[m.status]}">
+      <div class="q">${qrSvg(m.id)}</div>
+      <h3>${esc(m.name)}</h3>
+      <div class="sub">${esc(m.unit)}</div>
+      ${pill(m)}
+      <div class="id">${m.id}</div>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn" data-act="save-png" data-id="${m.id}">${ic('download')}Save QR image</button>
+      ${s ? (rec ? `<button class="btn" data-act="modal-unmark" data-id="${m.id}">${ic('undo')}Remove check-in</button>`
+                 : `<button class="btn primary" data-act="modal-mark" data-id="${m.id}">${ic('check')}Check in</button>`) : ''}
+    </div>
+    <div class="sheet-actions">
+      <button class="btn" data-act="edit-member" data-id="${m.id}">${ic('edit')}Edit details</button>
+      <button class="btn danger" data-act="delete-member" data-id="${m.id}">${ic('trash')}Delete member</button>
+    </div>${hist}`);
+}
+function refreshUnitFilter(){
+  const cur = state.mem.unit;
+  $('#mUnit').innerHTML = ['All',...UNITS].map(w=>`<option value="${esc(w)}">${esc(w==='All'?'All units':w)}</option>`).join('');
+  if(cur!=='All' && !UNITS.includes(cur)) state.mem.unit='All';
+  $('#mUnit').value = state.mem.unit;
+}
+const unitWing = u => { const m = MEMBERS.find(x=>x.unit===u); return m ? m.wing : null; };
+function memberForm(id){
+  const m = id ? byId.get(id) : null;
+  const firstUnit = m ? m.unit : (state.mem.unit!=='All' ? state.mem.unit : UNITS[0]);
+  const unitOpts = UNITS.map(u=>`<option value="${esc(u)}" ${u===firstUnit?'selected':''}>${esc(u)}</option>`).join('')+`<option value="__new">New unit…</option>`;
+  openModal(`<button class="iconbtn sheet-x" data-close aria-label="Close">${ic('x')}</button>
+    <h2>${m?'Edit member':'Add member'}</h2>
+    ${m?`<p>${m.id}. The ID and QR code stay the same.</p>`:`<p>A new ID and QR code are created when you save.</p>`}
+    <div class="stack">
+      <div class="field"><label for="fName">Name</label><input type="text" id="fName" value="${m?esc(m.name):''}" autocomplete="off" maxlength="80"></div>
+      <div class="field"><label for="fStatus">Membership</label><select id="fStatus">${TIERS.map(t=>`<option ${m&&m.status===t?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="field"><label for="fUnitSel">Unit</label><select id="fUnitSel">${unitOpts}</select></div>
+      <div class="field" id="fUnitNewBox" hidden><label for="fUnitNew">New unit name</label><input type="text" id="fUnitNew" autocomplete="off" maxlength="40" placeholder="e.g. Seeb"></div>
+      <div class="field"><label for="fWing">Wing</label><select id="fWing"><option>Men</option><option>Women</option></select></div>
+    </div>
+    <div class="sheet-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" data-act="save-member" data-id="${m?m.id:''}">${m?'Save changes':'Add member'}</button></div>`);
+  syncUnitFields();
+  if(m) $('#fWing').value = m.wing;
+}
+function syncUnitFields(){
+  const sel=$('#fUnitSel'), isNew=sel.value==='__new', wing=$('#fWing');
+  $('#fUnitNewBox').hidden=!isNew;
+  if(isNew){ wing.disabled=false; if(/vanitha$/i.test($('#fUnitNew').value.trim())) wing.value='Women'; }
+  else{ wing.value = unitWing(sel.value)||wing.value; wing.disabled=true; }
+}
+function saveMember(id){
+  const name = tidyName($('#fName').value), status = $('#fStatus').value;
+  let unit = $('#fUnitSel').value==='__new' ? tidyUnit($('#fUnitNew').value) : $('#fUnitSel').value;
+  const wing = $('#fWing').value;
+  if(!name){ toast('Enter the member’s name.','bad'); $('#fName').focus(); return; }
+  if(!unit){ toast('Enter a unit name.','bad'); $('#fUnitNew').focus(); return; }
+  const same = UNITS.find(u=>u.toLowerCase()===unit.toLowerCase()); if(same) unit=same;
+  const dup = MEMBERS.find(x=>x.id!==id && x.unit===unit && x.name.toLowerCase()===name.toLowerCase());
+  if(dup){ toast(`${dup.name} (${dup.id}) is already in ${unit}. Add a surname or initial to tell them apart.`,'bad'); return; }
+  let target = id;
+  if(id){
+    Object.assign(byId.get(id),{name,status,unit,wing});
+    if(cloud){ pendingMemberOps.set(id,{op:'upsert',ts:Date.now()}); cloudEditMember(id,name,status,unit,wing); }
+    saveRoster();
+  }else{
+    target = cloud ? mintCloudId() : newId(nextNum);
+    if(!cloud) nextNum++;
+    MEMBERS.push({id:target,name,status,unit,wing});
+    if(cloud){ pendingMemberOps.set(target,{op:'upsert',ts:Date.now()}); cloudAddMember(target,name,status,unit,wing); }
+    saveRoster();
+  }
+  rebuildRoster(); refreshUnitFilter(); closeModal();
+  toast(id ? 'Changes saved.' : `${name} added as ${target}.`);
+  refresh();
+  if(!id) openMember(target);
+}
+async function deleteMember(id){
+  const m = byId.get(id); if(!m) return;
+  const n = state.log.filter(r=>r.m===id).length;
+  const ok = await confirmDialog({title:`Delete ${m.name}?`,
+    body:`${m.id} stops working as a QR code${n?`, and their ${n} check-in${n===1?'':'s'} will be removed from all sessions`:''}.${cloud?' This removes them for everyone.':' The ID is never reused.'} This cannot be undone.`,
+    ok:'Delete member',danger:true});
+  if(!ok) return;
+  MEMBERS = MEMBERS.filter(x=>x.id!==id);
+  if(!deletedIds.includes(id)) deletedIds.push(id);
+  state.log = state.log.filter(r=>r.m!==id);
+  rebuildRoster(); reindex(); refreshUnitFilter();
+  if(cloud){ pendingMemberOps.set(id,{op:'delete',ts:Date.now()}); cloudDeleteMember(id); } save(); saveRoster();
+  toast(`${m.name} deleted.`); refresh();
+}
+async function importLegacySessions(){
+  if(!cloud){ toast('Connect first, then try again.','bad'); return; }
+  let snap;
+  try{ snap = await cloud.collection('sessions').get(); } // the OLD top-level collection, from before forums existed
+  catch(e){ toast('Could not read your old data — check your connection.','bad'); return; }
+  const existingIds = new Set(state.sessions.map(s=>s.id));
+  const extras = snap.docs.map(d=>({id:d.id,...d.data()})).filter(s=>!existingIds.has(s.id) && s.name && s.date);
+  if(!extras.length){ toast('No extra sessions found in your old data — nothing to import.'); return; }
+  const totalCheckins = extras.reduce((a,s)=>a+Object.keys(s.attendance||{}).length,0);
+  const ok = await confirmDialog({title:'Import old sessions?',
+    body:`Found ${extras.length} session${extras.length===1?'':'s'} in your old data (from before forums), with ${totalCheckins} check-in${totalCheckins===1?'':'s'} between them. They'll be added to this forum.`,
+    ok:'Import',danger:false});
+  if(!ok) return;
+  let n=0;
+  for(const s of extras){
+    pendingSessionOps.set(s.id,{op:'upsert',ts:Date.now()});
+    try{
+      await forumCol('sessions').doc(s.id).set({name:s.name,date:s.date,attendance:s.attendance||{}});
+      state.sessions.push({id:s.id,name:s.name,date:s.date});
+      const att=s.attendance||{};
+      for(const mid in att){ const e=att[mid]||{}; state.log.push({m:mid,s:s.id,t:e.t,src:e.src}); }
+      n++;
+    }catch(e){ pendingSessionOps.delete(s.id); }
+  }
+  reindex(); save();
+  toast(`Imported ${n} extra session${n===1?'':'s'} into this forum.`);
+  refresh();
+}
+async function importLegacyExtraMembers(){
+  if(!cloud){ toast('Connect first, then try again.','bad'); return; }
+  let snap;
+  try{ snap = await cloud.collection('members').get(); } // the OLD top-level collection, from before forums existed
+  catch(e){ toast('Could not read your old data — check your connection.','bad'); return; }
+  const baseIds = new Set(BASE_MEMBERS.map(m=>m.id));
+  const extras = snap.docs.map(d=>({id:d.id,...d.data()})).filter(m=>!baseIds.has(m.id) && m.active!==false && m.name && !byId.has(m.id));
+  if(!extras.length){ toast('No extra members found beyond the original 222 — nothing to import.'); return; }
+  const ok = await confirmDialog({title:'Import extra members?',
+    body:`Found ${extras.length} member${extras.length===1?'':'s'} in your old data (from before forums) that aren't part of the original 222 and aren't already in this forum. They'll be added here with their existing name, unit and status.`,
+    ok:'Import',danger:false});
+  if(!ok) return;
+  let n=0;
+  for(const m of extras){
+    const clean = {name:String(m.name||'').trim(),status:TIERS.includes(m.status)?m.status:'Active Associate',unit:String(m.unit||'').trim()||'Unassigned',wing:WINGS.includes(m.wing)?m.wing:'Men'};
+    pendingMemberOps.set(m.id,{op:'upsert',ts:Date.now()});
+    try{ await forumCol('members').doc(m.id).set({...clean,active:true}); MEMBERS.push({id:m.id,...clean}); n++; }
+    catch(e){ pendingMemberOps.delete(m.id); }
+  }
+  rebuildRoster(); refreshUnitFilter(); saveRoster();
+  toast(`Imported ${n} extra member${n===1?'':'s'} into this forum.`);
+  refresh();
+}
+async function restoreRoster(){
+  const ok = await confirmDialog({title:'Restore the original member list?',
+    body:`Members you added are removed (with their check-ins), edits are undone, and deleted members come back.${cloud?' This applies for everyone.':' New IDs already handed out are not reused.'}`,ok:'Restore original list',danger:true});
+  if(!ok) return;
+  if(cloud){ await cloudRestoreRoster(); toast('Original member list restored.'); return; }
+  MEMBERS = BASE_MEMBERS.map(x=>({...x})); deletedIds = [];
+  rebuildRoster(); state.log = state.log.filter(r=>byId.has(r.m)); reindex();
+  save(); saveRoster(); refreshUnitFilter(); toast('Original member list restored.'); refresh();
+}
+function parseTier(raw){
+  const t = String(raw||'').trim().toLowerCase();
+  if(t.startsWith('ruk')) return 'Rukun';
+  if(t.startsWith('kar')) return 'Karkoon';
+  if(t.startsWith('act')) return 'Active Associate';
+  return null;
+}
+function importCleanName(raw){ // mirrors the cleanup used to build the original roster (per-token, not "leave mixed-case alone")
+  const str = String(raw).trim();
+  const allUpper = str===str.toUpperCase() && /[A-Za-z]/.test(str);
+  return str.split(/\s+/).filter(Boolean).map(t=>{
+    if(t.length<=2 && /^[a-zA-Z]+$/.test(t)) return t.toUpperCase();          // initials: cp -> CP
+    if(allUpper && t===t.toUpperCase()) return t.charAt(0).toUpperCase()+t.slice(1).toLowerCase(); // SHEEBA -> Sheeba
+    if(/^[a-z]/.test(t)) return t.charAt(0).toUpperCase()+t.slice(1);         // kadeeja -> Kadeeja
+    return t;
+  }).join(' ').slice(0,80);
+}
+function rowsFromSheet(ws){
+  const rows = window.XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+  let headerIdx=-1, col=null;
+  for(let i=0;i<Math.min(rows.length,15);i++){
+    const cells = rows[i].map(c=>String(c).trim().toLowerCase());
+    const sno = cells.findIndex(c=>/^s\.?\s?no\.?$/.test(c)||/^sl\.?\s?no\.?$/.test(c));
+    const name = cells.findIndex(c=>c==='name');
+    const status = cells.findIndex(c=>c.includes('membership')||c==='status');
+    const unit = cells.findIndex(c=>c==='unit');
+    if(name>=0 && unit>=0 && status>=0){ headerIdx=i; col={sno,name,status,unit}; break; }
+  }
+  if(headerIdx<0) return null;
+  const out=[];
+  for(let i=headerIdx+1;i<rows.length;i++){
+    const r=rows[i], name=String(r[col.name]||'').trim();
+    if(!name) continue;
+    const status=parseTier(r[col.status]), unitRaw=String(r[col.unit]||'').trim();
+    if(!status||!unitRaw) continue;
+    const sno = col.sno>=0 ? parseInt(r[col.sno],10) : NaN;
+    out.push({sno:Number.isFinite(sno)?sno:null, name, status, unitRaw});
+  }
+  return out.length ? out : null;
+}
+async function importFromExcel(file){
+  if(!file) return;
+  const ok = await lib('xlsx');
+  if(!ok || !window.XLSX){ toast('The spreadsheet reader could not load. Check your connection.','bad'); return; }
+  let wb;
+  try{ wb = window.XLSX.read(await file.arrayBuffer(),{type:'array'}); }
+  catch(e){ toast('That file could not be read as an Excel spreadsheet.','bad'); return; }
+  let rows=null, usedSheet=null;
+  const order = wb.SheetNames.slice().sort((a,b)=>(/complete|member|list/i.test(b)?1:0)-(/complete|member|list/i.test(a)?1:0));
+  for(const name of order){ const r=rowsFromSheet(wb.Sheets[name]); if(r){ rows=r; usedSheet=name; break; } }
+  if(!rows){ toast('Could not find a Name / Membership status / Unit table in that file.','bad'); return; }
+  const parsed = rows.map(r=>{
+    if(!r.sno) return null;
+    const unit = tidyUnit(r.unitRaw);
+    return { id:newId(r.sno), name:importCleanName(r.name), status:r.status, unit, wing:/vanitha$/i.test(unit)?'Women':'Men' };
+  }).filter(Boolean);
+  if(!parsed.length){ toast('No usable member rows were found in that file (need a S.No column to match members).','bad'); return; }
+  const toAdd=[], toUpdate=[];
+  for(const m of parsed){
+    const ex = byId.get(m.id);
+    if(!ex) toAdd.push(m);
+    else if(ex.name!==m.name||ex.status!==m.status||ex.unit!==m.unit||ex.wing!==m.wing) toUpdate.push(m);
+  }
+  if(!toAdd.length && !toUpdate.length){ toast(`Already matches “${usedSheet}” — nothing to change.`); return; }
+  const untouched = parsed.length-toAdd.length-toUpdate.length;
+  const ok2 = await confirmDialog({title:'Import members from this file?',
+    body:`Found ${parsed.length} members in “${usedSheet}”. ${toAdd.length} will be added, ${toUpdate.length} updated, ${untouched} already match. Members already here but not in the file are left as they are.${cloud?' This applies for everyone.':''}`,
+    ok:'Import',danger:false});
+  if(!ok2) return;
+  const total = toAdd.length+toUpdate.length; let done=0;
+  toast(`Importing… 0 of ${total}`);
+  for(const m of toAdd){
+    if(cloud){ pendingMemberOps.set(m.id,{op:'upsert',ts:Date.now()}); await cloudAddMember(m.id,m.name,m.status,m.unit,m.wing); }
+    MEMBERS.push({...m}); done++;
+    if(done%15===0) toast(`Importing… ${done} of ${total}`);
+  }
+  for(const m of toUpdate){
+    if(cloud){ pendingMemberOps.set(m.id,{op:'upsert',ts:Date.now()}); await cloudEditMember(m.id,m.name,m.status,m.unit,m.wing); }
+    Object.assign(byId.get(m.id)||{},{name:m.name,status:m.status,unit:m.unit,wing:m.wing}); done++;
+    if(done%15===0) toast(`Importing… ${done} of ${total}`);
+  }
+  rebuildRoster(); refreshUnitFilter();
+  saveRoster();
+  toast(`Imported from “${usedSheet}”: ${toAdd.length} added, ${toUpdate.length} updated.`);
+  refresh();
+}
+async function downloadZip(){
+  const btn=$('#btnZip'), prog=$('#bulkProgress');
+  if(typeof qrcode==='undefined' && !(await lib('qr'))){ toast('The QR library could not load.','bad'); return; }
+  prog.textContent='Loading the ZIP tool…';
+  if(!(await lib('zip'))){ prog.textContent=''; toast('The ZIP tool could not load. Check your connection.','bad'); return; }
+  btn.disabled=true;
+  try{
+    const zip=new JSZip();
+    for(let i=0;i<MEMBERS.length;i++){
+      const m=MEMBERS[i];
+      zip.folder(m.unit).file(fileBase(m)+'.png', await canvasBlob(cardCanvas(m)));
+      if(i%8===0){ prog.textContent=`Preparing codes… ${i+1} of ${MEMBERS.length}`; await sleep(0); }
+    }
+    prog.textContent='Packing the ZIP file…';
+    const out = await zip.generateAsync({type:'blob'});
+    prog.textContent='';
+    await saveFile('CFM-member-QR-codes.zip',out);
+  }catch(e){ toast('Could not build the ZIP file.','bad'); prog.textContent=''; }
+  btn.disabled=false;
+}
+function buildCardsHtml(){
+  const sorted=[...MEMBERS].sort((a,b)=>a.unit.localeCompare(b.unit)||a.name.localeCompare(b.name));
+  const cards=sorted.map(m=>`<div class="c" style="--c:${TIER_HEX[m.status]}"><div class="q">${qrSvg(m.id,2)}</div><div class="t"><b>${esc(m.name)}</b><span>${esc(m.unit)}</span><span class="s">${esc(m.status)}</span><span class="i">${m.id}</span></div></div>`).join('');
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>CFM member QR cards</title><style>
+@page{size:A4;margin:8mm}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;color:#10222B;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.bar{padding:12px 16px;background:#eef3f3;font-size:14px;display:flex;gap:12px;align-items:center}
+.bar button{font-size:14px;padding:8px 14px}
+.sheet{display:grid;grid-template-columns:repeat(3,63mm);justify-content:center}
+.c{width:63mm;height:40mm;border:.2mm dashed #8a9aa0;border-top:1.6mm solid var(--c);display:flex;align-items:center;gap:2.4mm;padding:2mm 2.4mm;break-inside:avoid}
+.q{width:29mm;height:29mm;flex:none}.q svg{width:100%;height:100%;display:block}
+.t{display:flex;flex-direction:column;gap:.9mm;min-width:0}
+.t b{font-size:10.5pt;line-height:1.15;overflow-wrap:anywhere}
+.t span{font-size:8pt;line-height:1.2}.t .s{color:var(--c);font-weight:700}.t .i{font-weight:700;letter-spacing:.03em}
+@media print{.bar{display:none}}
+</style></head><body><div class="bar"><button onclick="window.print()">Print</button><span>${MEMBERS.length} cards, sorted by unit. Print on A4 at 100% scale and cut along the dashed lines.</span></div><div class="sheet">${cards}</div></body></html>`;
+}
+function downloadRegister(){
+  const rows=[['Member ID (QR value)','Name','Membership status','Unit','Wing']].concat(MEMBERS.map(m=>[m.id,m.name,m.status,m.unit,m.wing]));
+  saveFile('CFM-member-QR-register.csv',toCsv(rows));
+}
+
+/* ================= DASHBOARD ================= */
+function computeDash(){
+  const d=state.dash;
+  if(d.scope!=='ALL' && !state.sessions.some(s=>s.id===d.scope)) d.scope = state.activeId;
+  const all = d.scope==='ALL';
+  const sess = all ? state.sessions : state.sessions.filter(s=>s.id===d.scope);
+  const nS = Math.max(sess.length,1), sids=new Set(sess.map(s=>s.id));
+  const per=new Map();
+  for(const r of state.log){
+    if(!sids.has(r.s)) continue;
+    let p=per.get(r.m); if(!p){ p={n:0,t:0,src:''}; per.set(r.m,p); }
+    p.n++; if(r.t>p.t){ p.t=r.t; p.src=r.src; }
+  }
+  const uni = MEMBERS.filter(m=>(d.wing==='All'||m.wing===d.wing)&&(d.status==='All'||m.status===d.status));
+  const group = keyFn => {
+    const g=new Map();
+    for(const m of uni){
+      const k=keyFn(m); let x=g.get(k); if(!x){ x={key:k,n:0,c:0,any:0}; g.set(k,x); }
+      x.n++; const p=per.get(m.id); if(p){ x.c+=p.n; x.any++; }
+    }
+    return Array.from(g.values()).map(x=>({...x,rate:x.n?x.c/(x.n*nS):0}));
+  };
+  let c=0, any=0; for(const m of uni){ const p=per.get(m.id); if(p){ c+=p.n; any++; } }
+  return {all,sess,nS,per,uni,total:uni.length,c,any,rate:uni.length?c/(uni.length*nS):0,
+    byStatus:group(m=>m.status).sort((a,b)=>TIERS.indexOf(a.key)-TIERS.indexOf(b.key)),
+    byWing:group(m=>m.wing).sort((a,b)=>WINGS.indexOf(a.key)-WINGS.indexOf(b.key)),
+    byUnit:group(m=>m.unit)};
+}
+function barRow(label,g,D,color){
+  const val = D.all ? `avg ${fmt1(g.c/D.nS)} of ${g.n}` : `${g.c} of ${g.n}`;
+  const pct=Math.round(g.rate*100);
+  return `<div class="bar-row"><div class="bar-top"><span class="bar-label">${esc(label)}</span><span class="bar-val">${val}<em>${pct}%</em></span></div>
+    <div class="bar" role="img" aria-label="${esc(label)} ${pct} percent"><i style="width:${Math.min(100,g.rate*100).toFixed(1)}%;background:${color}"></i></div></div>`;
+}
+const chartWidth = () => { const v=$('#v-dash'), cs=getComputedStyle(v); const w=v.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight)-34; return Math.max(260,Math.round(w||320)); };
+function timelineSvg(times){
+  times.sort((a,b)=>a-b);
+  const span=times[times.length-1]-times[0];
+  let step = span<=90*60e3 ? 5*60e3 : span<=6*3600e3 ? 15*60e3 : 3600e3;
+  while(Math.floor(span/step)+1>96) step*=2;
+  const start=Math.floor(times[0]/step)*step, nb=Math.floor((times[times.length-1]-start)/step)+1;
+  const b=new Array(nb).fill(0); times.forEach(t=>{ b[Math.floor((t-start)/step)]++; });
+  const max=Math.max(...b), W=chartWidth(), H=150, top=16, bot=24, bw=W/nb, ch=H-top-bot;
+  let bars='', labels='';
+  b.forEach((v,i)=>{
+    const h=Math.max(v?3:0,(v/max)*ch);
+    bars+=`<rect x="${(i*bw+bw*.12).toFixed(1)}" y="${(top+ch-h).toFixed(1)}" width="${(bw*.76).toFixed(1)}" height="${h.toFixed(1)}" rx="2" fill="var(--brand)"><title>${v} at ${hm(start+i*step)}</title></rect>`;
+  });
+  const idxs = nb<=2 ? [0,nb-1] : [0,Math.floor((nb-1)/2),nb-1];
+  [...new Set(idxs)].forEach((i,k,arr)=>{
+    const anchor = k===0?'start':(k===arr.length-1?'end':'middle');
+    const x = k===0 ? i*bw : (k===arr.length-1 ? (i+1)*bw : i*bw+bw/2);
+    labels+=`<text x="${x.toFixed(1)}" y="${H-6}" text-anchor="${anchor}">${hm(start+i*step)}</text>`;
+  });
+  const peak=b.indexOf(max);
+  return {svg:`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Check-ins over time">${bars}<line x1="0" x2="${W}" y1="${top+ch+.5}" y2="${top+ch+.5}" stroke="var(--line)"/>${labels}</svg>`,
+          note:`Busiest ${Math.round(step/60000)} minutes: ${hm(start+peak*step)} with ${max} check-in${max===1?'':'s'}.`};
+}
+function trendSvg(D){
+  const ss=[...state.sessions].sort((a,b)=>a.date.localeCompare(b.date)||a.name.localeCompare(b.name)).slice(-12);
+  const W=chartWidth(),H=170,top=22,bot=28,n=ss.length,bw=W/n,ch=H-top-bot;
+  const uniIds=new Set(D.uni.map(m=>m.id));
+  const counts=ss.map(s=>{ let c=0; for(const r of state.log) if(r.s===s.id && uniIds.has(r.m)) c++; return c; });
+  const max=Math.max(1,...counts);
+  let out='';
+  ss.forEach((s,i)=>{
+    const h=Math.max(counts[i]?3:0,counts[i]/max*ch), sel=D.all||s.id===D.sess[0].id;
+    const x=i*bw+bw*.18, w=bw*.64;
+    out+=`<rect x="${x.toFixed(1)}" y="${(top+ch-h).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="${sel?'var(--brand)':'var(--brand-mid)'}"><title>${esc(s.name)}: ${counts[i]}</title></rect>`+
+         `<text class="val" x="${(x+w/2).toFixed(1)}" y="${(top+ch-h-5).toFixed(1)}" text-anchor="middle">${counts[i]}</text>`+
+         `<text x="${(x+w/2).toFixed(1)}" y="${H-8}" text-anchor="middle">${esc(fmtDay(s.date))}</text>`;
+  });
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Attendance by session">${out}<line x1="0" x2="${W}" y1="${top+ch+.5}" y2="${top+ch+.5}" stroke="var(--line)"/></svg>`;
+}
+function renderDash(){
+  const d=state.dash;
+  if(!d.scope) d.scope=state.activeId;
+  const D=computeDash();
+  const scopeOpts = `<option value="ALL" ${d.scope==='ALL'?'selected':''}>All sessions combined</option>`+
+    sortedSessions().map(s=>`<option value="${esc(s.id)}" ${s.id===d.scope?'selected':''}>${esc(s.name)} · ${esc(fmtDay(s.date))}</option>`).join('');
+  const sel=(id,label,vals,cur,allLabel)=>`<div class="field"><label for="${id}">${label}</label><select id="${id}">`+
+    ['All',...vals].map(v=>`<option value="${esc(v)}" ${v===cur?'selected':''}>${esc(v==='All'?allLabel:v)}</option>`).join('')+`</select></div>`;
+  let html = `<div class="dash-controls"><div class="field"><label for="dScope">Session</label><select id="dScope">${scopeOpts}</select></div>`+
+    sel('dWing','Wing',WINGS,d.wing,'All')+sel('dStatus','Membership',TIERS,d.status,'All')+`</div>`;
+
+  if(!D.total){
+    $('#v-dash').innerHTML = html+`<div class="card empty"><strong>No members match these filters</strong>Choose a different wing or membership.</div>`; return;
+  }
+  const times=[]; const uniIds=new Set(D.uni.map(m=>m.id));
+  if(!D.all) for(const r of state.log) if(r.s===D.sess[0].id && uniIds.has(r.m)) times.push(r.t);
+  const noData = D.c===0;
+
+  const heroNum = D.all ? fmt1(D.c/D.nS) : D.any;
+  const heroCap = D.all ? `average present per session, across ${D.sess.length} session${D.sess.length===1?'':'s'}`
+                        : `present of ${D.total} member${D.total===1?'':'s'}`;
+  const facts = D.all
+    ? [[D.sess.length,'sessions held'],[D.any,'attended at least once'],[D.total-D.any,'never attended']]
+    : [[D.total-D.any,'yet to arrive'],[times.length?hm(Math.min(...times)):'–','first arrival'],[times.length?hm(Math.max(...times)):'–','last arrival']];
+  html += `<div class="card hero"><div><div class="hero-num">${heroNum}</div><div class="hero-cap">${heroCap}</div></div>
+    <div class="stack"><div class="row" style="justify-content:space-between"><b>${Math.round(D.rate*100)}% attendance</b><span class="muted">${esc(D.all?'All sessions':D.sess[0].name)}</span></div>
+    <div class="meter" role="img" aria-label="${Math.round(D.rate*100)} percent"><i style="width:${Math.min(100,D.rate*100).toFixed(1)}%"></i></div>
+    <div class="facts">${facts.map(([v,l])=>`<div class="fact"><b>${v}</b><span>${l}</span></div>`).join('')}</div></div></div>`;
+
+  if(noData){
+    html += `<div class="card empty"><strong>No check-ins recorded yet</strong>Scan a member’s QR code to start filling this dashboard.<div style="margin-top:12px"><button class="btn primary" data-act="go-scan">${ic('scan')}Open scanner</button></div></div>`;
+  }
+
+  html += `<div class="grid2" style="margin-top:14px"><div class="card"><h2>By membership</h2>${D.byStatus.map(g=>barRow(g.key,g,D,TIER_VAR[g.key])).join('')}</div>
+    <div class="card"><h2>By wing</h2>${D.byWing.map(g=>barRow(g.key,g,D,'var(--brand)')).join('')}</div></div>`;
+
+  const units=[...D.byUnit].sort(d.sort==='name'?(a,b)=>a.key.localeCompare(b.key):(a,b)=>b.rate-a.rate||a.key.localeCompare(b.key));
+  html += `<div class="card"><div class="card-head"><h2>By unit</h2><div class="seg" role="group" aria-label="Sort units">
+      <button data-act="dash-sort" data-v="rate" aria-pressed="${d.sort==='rate'}">Highest first</button><button data-act="dash-sort" data-v="name" aria-pressed="${d.sort==='name'}">A to Z</button></div></div>
+    <div class="unit-cols"><div>${units.slice(0,Math.ceil(units.length/2)).map(g=>barRow(g.key,g,D,'var(--brand)')).join('')}</div>
+    <div>${units.slice(Math.ceil(units.length/2)).map(g=>barRow(g.key,g,D,'var(--brand)')).join('')}</div></div></div>`;
+
+  if(!D.all && times.length){
+    const tl=timelineSvg(times);
+    html += `<div class="card"><h2>Arrivals over time</h2>${tl.svg}<p class="hint">${tl.note}</p></div>`;
+  }
+  if(state.sessions.length>=2){
+    html += `<div class="card"><h2>Present in each session</h2>${trendSvg(D)}${state.sessions.length>12?'<p class="hint">Showing the latest 12 sessions.</p>':''}</div>`;
+  }
+
+  const P=[],A=[]; for(const m of D.uni) (D.per.has(m.id)?P:A).push(m);
+  const L = D.all ? ['Attended','Never attended'] : ['Present','Not checked in'];
+  html += `<div class="card"><div class="card-head"><h2>Members</h2><div class="row" style="gap:8px;flex-wrap:wrap">
+      <button class="btn small" data-act="dl-report">${ic('download',16)}Report (.csv)</button>
+      ${!D.all?`<button class="btn small primary" data-act="dl-pdf">${ic('download',16)}Session report (PDF)</button>`:''}</div></div>
+    <div class="tabs-inline"><div class="seg" role="group" aria-label="List">
+      <button data-act="dash-list" data-v="present" aria-pressed="${d.list==='present'}">${L[0]} (${P.length})</button>
+      <button data-act="dash-list" data-v="absent" aria-pressed="${d.list==='absent'}">${L[1]} (${A.length})</button></div>
+      <input type="search" id="dq" placeholder="Search this list" value="${esc(d.q)}" aria-label="Search this list"></div>
+    <div class="dl-list" id="dList"></div></div>`;
+  $('#v-dash').innerHTML=html;
+  renderDashList(D);
+}
+function renderDashList(D){
+  D = D || computeDash();
+  const d=state.dash, toks=norm(d.q).split(' ').filter(Boolean);
+  let list = D.uni.filter(m=>(d.list==='present')===D.per.has(m.id) && toks.every(t=>m._h.includes(t)));
+  list = d.list==='present' ? list.sort((a,b)=>D.per.get(b.id).t-D.per.get(a.id).t)
+                            : list.sort((a,b)=>a.unit.localeCompare(b.unit)||a.name.localeCompare(b.name));
+  const shown=list.slice(0,d.limit);
+  const sid = D.all ? null : D.sess[0].id;
+  const rows = shown.map(m=>{
+    const p=D.per.get(m.id);
+    let side='';
+    if(d.list==='present'){
+      side = D.all ? `<span class="side">${p.n} of ${D.sess.length}<small>last ${fmtDay(dayStr(p.t))}</small></span>`
+                   : `<span class="side">${fmtTime(p.t)}<small>${p.src==='scan'?'Scanned':p.src==='photo'?'From photo':'Added by hand'}</small></span><button class="iconbtn" data-act="mark-remove" data-id="${m.id}" data-sid="${esc(sid)}" aria-label="Remove check-in for ${esc(m.name)}">${ic('undo')}</button>`;
+    }else if(!D.all){
+      side = `<button class="btn small" data-act="mark" data-src="manual" data-id="${m.id}" data-sid="${esc(sid)}">Check in</button>`;
+    }
+    return `<div class="result"><div class="who"><b>${esc(m.name)}</b><small>${esc(m.unit)} ${pill(m)}</small></div>${side}</div>`;
+  }).join('');
+  $('#dList').innerHTML = (rows || `<div class="empty">${d.list==='present'?'Nobody in this list yet.':'Everyone is accounted for.'}</div>`)+
+    (list.length>shown.length?`<div style="text-align:center;margin-top:10px"><button class="btn small" data-act="more">Show ${Math.min(50,list.length-shown.length)} more of ${list.length-shown.length}</button></div>`:'');
+}
+function downloadReport(){
+  const ss=[...state.sessions].sort((a,b)=>a.date.localeCompare(b.date)||a.name.localeCompare(b.name));
+  const rows=[['Member ID','Name','Membership status','Unit','Wing',...ss.map(s=>`${s.name} (${s.date}) check-in time`),'Sessions attended','Attendance %']];
+  for(const m of MEMBERS){
+    let n=0; const cells=ss.map(s=>{ const r=logIdx.get(lk(s.id,m.id)); if(r){ n++; return hm(r.t); } return ''; });
+    rows.push([m.id,m.name,m.status,m.unit,m.wing,...cells,n,ss.length?Math.round(n/ss.length*100):0]);
+  }
+  saveFile(`CFM-attendance-report-${todayStr()}.csv`,toCsv(rows));
+}
+
+/* ================= SESSIONS ================= */
+function renderSessions(){
+  const ss=sortedSessions();
+  const syncBanner = cloud
+    ? (state.cloudStatus==='error' ? `<div class="banner">${ic('alert')}<div>Can't reach the shared database, so new changes are staying on this device for now. ${esc(explainLoadError(state.cloudErr))}</div></div>` : '')
+    : (state.persist ? '' : `<div class="banner">${ic('alert')}<div>This browser is not letting the page save data. Export a backup before you close it.</div></div>`);
+  $('#v-sessions').innerHTML = `
+  ${syncBanner}
+  <div class="card"><h2>New session</h2>
+    <div class="form-grid">
+      <div class="field"><label for="sName">Name</label><input type="text" id="sName" placeholder="e.g. Monthly meeting" autocomplete="off"></div>
+      <div class="field"><label for="sDate">Date</label><input type="date" id="sDate" value="${todayStr()}"></div>
+      <button class="btn primary" data-act="create-session">${ic('plus')}Create session</button>
+    </div></div>
+  <div class="card"><h2>All sessions</h2>
+    ${ss.map(s=>`<div class="s-row"><div class="who"><b>${esc(s.name)}</b><small><span>${esc(fmtDate(s.date))}</span><span>${countIn(s.id)} of ${MEMBERS.length} present</span>${s.id===state.activeId?'<span class="tick">Checking in now</span>':''}</small></div>
+      <div class="s-actions">${s.id===state.activeId?'':`<button class="btn small" data-act="use-session" data-sid="${esc(s.id)}">Use</button>`}
+      <button class="iconbtn" data-act="edit-session" data-sid="${esc(s.id)}" aria-label="Edit ${esc(s.name)}">${ic('edit')}</button>
+      <button class="iconbtn" data-act="delete-session" data-sid="${esc(s.id)}" aria-label="Delete ${esc(s.name)}">${ic('trash')}</button></div></div>`).join('')}
+  </div>
+  <div class="card"><h2>${cloud?'Syncing across phones':'Backup and combine devices'}</h2>
+    <p style="margin:0 0 12px;color:var(--ink-2)">${cloud
+      ? `Check-ins, sessions and members sync automatically to every phone that opens this page (check-ins within a few seconds; new or edited members within a few minutes, or instantly when you open the Members tab) — no export or import needed. Export a backup here any time as an extra copy.`
+      : `Check-ins are saved in this browser only. If several people scan on different phones, export a backup from each phone and import them all on one device. Matching sessions and duplicate check-ins merge automatically.`}</p>
+    <div class="btn-row"><button class="btn" data-act="export-backup">${ic('download')}Export backup</button>
+    ${cloud?'':`<button class="btn" data-act="import-backup">${ic('upload')}Import backup</button>`}
+    ${cloud?`<button class="btn" data-act="import-legacy-sessions">${ic('upload')}Import extra sessions from old data</button>`:''}
+    <button class="btn danger" data-act="reset-all">${ic('trash')}Erase all check-ins</button></div></div>
+  <div class="card"><h2>Member list</h2>
+    <p style="margin:0 0 12px;color:var(--ink-2)">${MEMBERS.length} members. Add, edit or delete members from the Members tab.${cloud?' Changes there sync to every phone.':' Member changes are saved on this device only. Make them on one device, since importing a backup adds members and check-ins but does not copy edits or deletions.'}</p>
+    <div class="btn-row"><button class="btn" data-act="import-xlsx">${ic('upload')}Import from Excel</button>
+    ${cloud?`<button class="btn" data-act="import-legacy">${ic('upload')}Import extra members from old data</button>`:''}
+    <button class="btn danger" data-act="restore-roster">${ic('undo')}Restore original member list</button></div></div>`;
+}
+function createSession(){
+  const name=$('#sName').value.trim().replace(/\s+/g,' '), date=$('#sDate').value;
+  if(!name){ toast('Enter a session name.','bad'); $('#sName').focus(); return; }
+  if(!date){ toast('Choose a date.','bad'); return; }
+  const id=makeSid(name,date);
+  if(state.sessions.some(s=>s.id===id)){ state.activeId=id; save(); toast('That session already exists. Switched to it.'); refresh(); return; }
+  state.sessions.push({id,name,date}); state.activeId=id; state.dash.scope=id;
+  if(cloud){ pendingSessionOps.set(id,{op:'upsert',ts:Date.now()}); cloudCreateSession(id,name,date); } save();
+  toast('Session created and selected.'); refresh();
+}
+function editSession(sid){
+  const s=state.sessions.find(x=>x.id===sid); if(!s) return;
+  openModal(`<button class="iconbtn sheet-x" data-close aria-label="Close">${ic('x')}</button><h2>Edit session</h2>
+    <div class="stack"><div class="field"><label for="eName">Name</label><input type="text" id="eName" value="${esc(s.name)}"></div>
+    <div class="field"><label for="eDate">Date</label><input type="date" id="eDate" value="${esc(s.date)}"></div></div>
+    <div class="sheet-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" data-act="save-session" data-sid="${esc(s.id)}">Save changes</button></div>`);
+}
+function exportBackup(){
+  const data={app:'cfm-attendance',v:2,exportedAt:new Date().toISOString(),sessions:state.sessions,log:state.log,members:MEMBERS.map(plain),next:nextNum};
+  saveFile(`CFM-attendance-backup-${todayStr()}.json`,JSON.stringify(data,null,1));
+}
+async function importBackup(file){
+  if(!file) return;
+  try{
+    const d=JSON.parse(await file.text());
+    if(!d || !Array.isArray(d.sessions) || !Array.isArray(d.log)) throw new Error('shape');
+    let ns=0, nl=0, nm=0; const skip=new Set();
+    if(Array.isArray(d.members)){
+      for(const x of d.members){
+        if(!validMember(x) || deletedIds.includes(x.id)){ if(x&&x.id) skip.add(x.id); continue; }
+        const ex=byId.get(x.id);
+        if(!ex){ MEMBERS.push(plain({...x,name:x.name.trim().slice(0,80),unit:x.unit.trim().slice(0,40)})); nm++; }
+        else if(idNum(x.id)>BASE_MEMBERS.length && ex.name.toLowerCase()!==x.name.trim().toLowerCase()) skip.add(x.id);
+      }
+      if(Number.isFinite(d.next)) nextNum=Math.max(nextNum,d.next);
+      if(nm){ rebuildRoster(); saveRoster(); refreshUnitFilter(); }
+    }
+    for(const s of d.sessions){
+      if(!s || typeof s.id!=='string' || typeof s.name!=='string' || !/^\d{4}-\d{2}-\d{2}$/.test(s.date||'')) continue;
+      if(!state.sessions.some(x=>x.id===s.id)){ state.sessions.push({id:s.id,name:s.name.slice(0,80),date:s.date}); ns++; }
+    }
+    for(const r of d.log){
+      if(!r || skip.has(r.m) || !byId.has(r.m) || !state.sessions.some(s=>s.id===r.s) || !Number.isFinite(r.t)) continue;
+      const k=lk(r.s,r.m), ex=logIdx.get(k);
+      if(!ex){ const rec={m:r.m,s:r.s,t:r.t,src:['scan','photo','manual'].includes(r.src)?r.src:'manual'}; state.log.push(rec); logIdx.set(k,rec); nl++; }
+      else if(r.t<ex.t){ ex.t=r.t; }
+    }
+    save(); toast(`Imported ${ns} new session${ns===1?'':'s'}, ${nl} new check-in${nl===1?'':'s'}${nm?` and ${nm} new member${nm===1?'':'s'}`:''}.`); refresh();
+  }catch(e){ toast('That file is not a valid attendance backup.','bad'); }
+}
+
+/* ================= events ================= */
+document.addEventListener('click', async e=>{
+  const tab=e.target.closest('[data-tab]');
+  if(tab){ go(tab.dataset.tab); return; }
+  if(e.target.closest('[data-close]')){ closeModal(); return; }
+  const el=e.target.closest('[data-act]'); if(!el) return;
+  const a=el.dataset.act, id=el.dataset.id, sid=el.dataset.sid;
+  switch(a){
+    case 'do-login': {
+      if(!window.__auth){ loginError('Still connecting — try again in a moment, or reload if this persists.'); break; }
+      const email=$('#loginEmail').value.trim(), pass=$('#loginPass').value;
+      if(!email||!pass){ loginError('Enter your email and password.'); break; }
+      $('#loginErr').hidden=true; $('#loginBusy').textContent='Signing in…';
+      try{
+        const user = await window.__auth.signIn(email,pass);
+        $('#loginBusy').textContent='Loading your account…';
+        await handleAuthedUser(user); // don't wait on the separate auth-state listener — act on this result directly
+      }
+      catch(e){
+        const bad = ['auth/invalid-credential','auth/wrong-password','auth/user-not-found','auth/invalid-email'].includes(e.code);
+        loginError(bad ? 'Incorrect email or password.' : 'Could not sign in. Check your connection and try again.');
+      }
+      break; }
+    case 'do-logout': stopPolling(); showMode('login'); await window.__auth.signOutNow(); break;
+    case 'create-forum': {
+      const name=$('#supForumName').value.trim().replace(/\s+/g,' ');
+      if(!name){ toast('Enter a forum name.','bad'); break; }
+      const id = slug(name)+'-'+Math.random().toString(36).slice(2,6);
+      try{ await cloud.collection('forums').doc(id).set({name,createdAt:Date.now()}); $('#supForumName').value=''; toast('Forum created.'); renderSuperConsole(); }
+      catch(e){ toast('Could not create that forum — check your connection.','bad'); }
+      break; }
+    case 'refresh-super': renderSuperConsole(); break;
+    case 'sup-export-excel': supExportExcel(); break;
+    case 'sup-export-pdf': supExportPdf(); break;
+    case 'view-roster': {
+      const fid = el.dataset.fid, fname = el.dataset.fname;
+      openModal(`<button class="iconbtn sheet-x" data-close aria-label="Close">${ic('x')}</button><h2>${esc(fname)}</h2><p>Loading roster…</p>`);
+      try{
+        const snap = await cloud.collection('forums/'+fid+'/members').get();
+        const list = snap.docs.map(d=>({id:d.id,...d.data()})).filter(m=>m.active!==false).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+        const rows = list.map(m=>`<div class="result"><div class="who"><b>${esc(m.name)}</b><small>${esc(m.unit||'')} ${pill(m)}<span>${esc(m.id)}</span></small></div></div>`).join('')
+          || `<div class="empty">No members yet.</div>`;
+        openModal(`<button class="iconbtn sheet-x" data-close aria-label="Close">${ic('x')}</button><h2>${esc(fname)}</h2><p>${list.length} member${list.length===1?'':'s'}</p>
+          <div style="max-height:56vh;overflow:auto">${rows}</div>`);
+      }catch(e){ openModal(`<button class="iconbtn sheet-x" data-close aria-label="Close">${ic('x')}</button><h2>${esc(fname)}</h2><p>Could not load this forum's roster — check your connection.</p>`); }
+      break; }
+    case 'create-forum-admin': {
+      const fid = el.dataset.fid;
+      openModal(`<button class="iconbtn sheet-x" data-close aria-label="Close">${ic('x')}</button>
+        <h2>Create admin login</h2><p>For this forum — share these with whoever will run it.</p>
+        <div class="stack"><div class="field"><label for="newAdminEmail">Email</label><input type="text" id="newAdminEmail" inputmode="email" autocomplete="off"></div>
+        <div class="field"><label for="newAdminPass">Password</label><input type="text" id="newAdminPass" placeholder="At least 6 characters" autocomplete="off"></div></div>
+        <div class="sheet-actions"><button class="btn" data-close>Cancel</button><button class="btn primary" data-act="save-forum-admin" data-fid="${esc(fid)}">Create login</button></div>`);
+      break; }
+    case 'save-forum-admin': {
+      const fid = el.dataset.fid, email=$('#newAdminEmail').value.trim(), pass=$('#newAdminPass').value;
+      if(!email||pass.length<6){ toast('Enter an email and a password of at least 6 characters.','bad'); break; }
+      try{
+        const {uid} = await window.__auth.createForumAdmin(email,pass);
+        await cloud.collection('admins').doc(uid).set({role:'forum',forumId:fid,email});
+        closeModal(); toast(`Admin login created for ${email}.`);
+      }catch(e){ toast(e.code==='auth/email-already-in-use' ? 'That email is already in use.' : 'Could not create that login — check your connection.','bad'); }
+      break; }
+    case 'go-sessions': go('sessions'); break;
+    case 'go-scan': go('scan'); break;
+    case 'start-cam': startCamera(); break;
+    case 'stop-cam': stopCamera(); showVerdict('idle'); break;
+    case 'flip-cam': scan.facing = scan.facing==='environment'?'user':'environment'; startCamera(); break;
+    case 'sound': state.sound=!state.sound; save(); $('#btnSound').innerHTML = state.sound ? ic('vol')+'Sound on' : ic('mute')+'Sound off'; if(state.sound) tone(880,.1); break;
+    case 'mark': {
+      const m=byId.get(id), r=mark(id,el.dataset.src||'manual',sid);
+      if(state.tab==='scan'){ showVerdict(r.dup?'dup':'ok',{m,t:r.rec.t}); feedback(r.dup?'dup':'ok'); renderScan2(); }
+      else{ toast(`${m.name} checked in.`); refresh(); }
+      break; }
+    case 'unmark': {
+      unmark(id,sid); toast('Check-in removed.');
+      if(state.tab==='scan'){ showVerdict('idle'); renderScan2(); } else refresh();
+      break; }
+    case 'mark-remove': {
+      const m=byId.get(id);
+      if(await confirmDialog({title:'Remove this check-in?',body:`${m.name} will be counted as absent for this session.`,ok:'Remove',danger:true})){ unmark(id,sid); toast('Check-in removed.'); refresh(); }
+      break; }
+    case 'confirm-yes': resolveConfirm(); break;
+    case 'open-member': openMember(id); break;
+    case 'add-member': memberForm(null); break;
+    case 'edit-member': memberForm(id); break;
+    case 'save-member': saveMember(id||''); break;
+    case 'delete-member': deleteMember(id); break;
+    case 'restore-roster': restoreRoster(); break;
+    case 'import-legacy': importLegacyExtraMembers(); break;
+    case 'import-legacy-sessions': importLegacySessions(); break;
+    case 'import-xlsx': $('#importXlsx').click(); break;
+    case 'modal-mark': { const m=byId.get(id); mark(id,'manual'); toast(`${m.name} checked in.`); closeModal(); refresh(); break; }
+    case 'modal-unmark': { unmark(id); toast('Check-in removed.'); closeModal(); refresh(); break; }
+    case 'save-png': {
+      if(typeof qrcode==='undefined'){ toast('The QR library could not load.','bad'); break; }
+      const m=byId.get(id); saveFile(fileBase(m)+'.png', await canvasBlob(cardCanvas(m))); break; }
+    case 'dl-zip': downloadZip(); break;
+    case 'dl-cards': if(typeof qrcode==='undefined'){ toast('The QR library could not load.','bad'); } else saveFile('CFM-member-QR-cards.html',buildCardsHtml()); break;
+    case 'dl-register': downloadRegister(); break;
+    case 'dl-report': downloadReport(); break;
+    case 'dl-pdf': downloadSessionPdf(); break;
+    case 'dash-sort': state.dash.sort=el.dataset.v; renderDash(); break;
+    case 'dash-list': state.dash.list=el.dataset.v; state.dash.limit=50; renderDash(); break;
+    case 'more': state.dash.limit+=50; renderDashList(); break;
+    case 'create-session': createSession(); break;
+    case 'use-session': state.activeId=sid; state.dash.scope=sid; save(); if(cloud) pollActiveSession(); toast('Now checking in to this session.'); refresh(); break;
+    case 'edit-session': editSession(sid); break;
+    case 'save-session': {
+      const s=state.sessions.find(x=>x.id===sid), n=$('#eName').value.trim().replace(/\s+/g,' '), dt=$('#eDate').value;
+      if(!n||!dt){ toast('Name and date are both required.','bad'); break; }
+      s.name=n; s.date=dt;
+      if(cloud){ pendingSessionOps.set(sid,{op:'upsert',ts:Date.now()}); cloudUpdateSession(sid,n,dt); } save();
+      closeModal(); refresh(); break; }
+    case 'delete-session': {
+      const s=state.sessions.find(x=>x.id===sid), n=countIn(sid);
+      if(await confirmDialog({title:`Delete “${s.name}”?`,body:n?`This also removes its ${n} check-in${n===1?'':'s'}. This cannot be undone.`:'This session has no check-ins.',ok:'Delete session',danger:true})){
+        state.sessions=state.sessions.filter(x=>x.id!==sid); state.log=state.log.filter(r=>r.s!==sid); reindex();
+        ensureSession(!cloud); if(state.dash.scope===sid) state.dash.scope=state.activeId;
+        if(cloud){ pendingSessionOps.set(sid,{op:'delete',ts:Date.now()}); cloudDeleteSession(sid); } save();
+        toast('Session deleted.'); refresh();
+      }
+      break; }
+    case 'export-backup': exportBackup(); break;
+    case 'import-backup': $('#importFile').click(); break;
+    case 'reset-all':
+      if(await confirmDialog({title:'Erase all check-ins?',body:`Every recorded check-in in every session will be deleted${cloud?' for everyone':' from this device'}. Sessions are kept. Export a backup first if you might need the data.`,ok:'Erase check-ins',danger:true})){
+        state.log=[]; reindex(); if(cloud) cloudClearCheckins(); save(); toast('All check-ins erased.'); refresh();
+      }
+      break;
+  }
+});
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape' && !$('#overlay').hidden) closeModal();
+  if((e.key==='Enter'||e.key===' ') && e.target.id==='photoBtn'){ e.preventDefault(); $('#photo').click(); }
+  if(e.key==='Enter' && (e.target.id==='fName'||e.target.id==='fUnitNew')){ e.preventDefault(); const b=$('[data-act="save-member"]'); if(b) b.click(); }
+});
+document.addEventListener('change', e=>{
+  const t=e.target;
+  if(t.id==='scanSess'){ state.activeId=t.value; state.dash.scope=t.value; save(); if(cloud) pollActiveSession(); renderHead(); renderScan(); showVerdict('idle'); }
+  else if(t.id==='supFForum'){ const opt=t.selectedOptions[0]; if(t.value) loadSupDetail(t.value, opt?opt.textContent:t.value); else{ supDetail={forumId:'',name:'',wing:'All',status:'All',unit:'All',sessionId:'',members:[],sessions:[]}; $('#supDetailsBody').innerHTML=`<div class="empty"><strong>Choose a forum above</strong>See its breakdown, session attendance, and export options.</div>`; } }
+  else if(t.id==='supFWing'){ supDetail.wing=t.value; renderSupDetails(); }
+  else if(t.id==='supFStatus'){ supDetail.status=t.value; renderSupDetails(); }
+  else if(t.id==='supFUnit'){ supDetail.unit=t.value; renderSupDetails(); }
+  else if(t.id==='supFSession'){ supDetail.sessionId=t.value; renderSupDetails(); }
+  else if(t.id==='photo'){ scanPhoto(t.files[0]); t.value=''; }
+  else if(t.id==='importFile'){ importBackup(t.files[0]); t.value=''; }
+  else if(t.id==='importXlsx'){ importFromExcel(t.files[0]); t.value=''; }
+  else if(t.id==='mWing'){ state.mem.wing=t.value; renderMembersList(); }
+  else if(t.id==='mStatus'){ state.mem.status=t.value; renderMembersList(); }
+  else if(t.id==='mUnit'){ state.mem.unit=t.value; renderMembersList(); }
+  else if(t.id==='fUnitSel'){ syncUnitFields(); if(t.value==='__new') $('#fUnitNew').focus(); }
+  else if(t.id==='dScope'){ state.dash.scope=t.value; state.dash.limit=50; renderDash(); }
+  else if(t.id==='dWing'){ state.dash.wing=t.value; state.dash.limit=50; renderDash(); }
+  else if(t.id==='dStatus'){ state.dash.status=t.value; state.dash.limit=50; renderDash(); }
+});
+document.addEventListener('input', e=>{
+  const t=e.target;
+  if(t.id==='lookupQ') renderLookup();
+  else if(t.id==='mq'){ state.mem.q=t.value; renderMembersList(); }
+  else if(t.id==='fUnitNew') syncUnitFields();
+  else if(t.id==='dq'){ state.dash.q=t.value; state.dash.limit=50; renderDashList(); }
+});
+document.addEventListener('keydown', e=>{
+  if(e.key==='Enter' && e.target.id==='lookupQ'){
+    e.preventDefault();
+    const q=e.target.value.trim(); if(!q) return;
+    let m = memberFromCode(q);
+    if(!m){ const r=searchMembers(q,2); if(r.length===1) m=r[0]; }
+    if(m){ handleCode(m.id,'manual'); e.target.value=''; renderLookup(); }
+    else if(!searchMembers(q,1).length){ showVerdict('bad',{title:'No match',text:`Nobody matches “${q}”.`}); feedback('bad'); }
+  }
+});
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden && scan.stream){ stopCamera(); showVerdict('idle'); } });
+
+/* ================= init ================= */
+function showMode(mode){ // 'login' | 'super' | 'forum'
+  $('#app-login').hidden = mode!=='login';
+  $('#app-super').hidden = mode!=='super';
+  $('#app-forum').hidden = mode!=='forum';
+}
+async function enterForum(forumId){
+  showMode('forum');
+  state.persist = testStorage();
+  loadRoster(); load(); ensureSession(); reindex(); save();
+  state.dash.scope = state.activeId;
+  $('#vpIcon').innerHTML = `<span style="color:#9FB4BB">${ic('camera',44)}</span>`;
+  $('#btnFlip').innerHTML = ic('flip',20); $('#btnStop').innerHTML = ic('x',20);
+  $('#photoIcon').innerHTML = ic('image');
+  initMemberFilters();
+  go('scan');
+  renderSyncStatus();
+  lib('qr'); lib('jsqr');
+  await initForumApp(forumId);
+}
+async function forumsListForSuper(){
+  const snap = await cloud.collection('forums').get();
+  return snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+}
+function explainLoadError(e){
+  const code = (e && (e.fbCode||e.code)) || 'unknown';
+  if(/resource.exhausted/.test(code)) return `Firestore's free daily read limit (50,000 reads) has been used up, so nothing can load until it resets at midnight Pacific time (07:00 UTC). Nothing is lost — your data is safe. (${code})`;
+  if(code==='permission-denied') return `Firestore is refusing this read — the security rules may have changed or been reset. (${code})`;
+  return `Could not load data — check the connection and press Refresh. (${code})`;
+}
+async function loadSuperStats(forums){
+  const out=[];
+  for(const f of forums){
+    let mCount=0, sCount=0, lastDate=null, err=null;
+    try{
+      const ms = await cloud.collection('forums/'+f.id+'/members').get();
+      mCount = ms.docs.filter(d=>{ const v=d.data()||{}; return v.active!==false; }).length;
+    }catch(e){ err=e; }
+    try{
+      const ss = await cloud.collection('forums/'+f.id+'/sessions').get();
+      sCount = ss.size;
+      ss.docs.forEach(d=>{ const v=d.data()||{}; if(v.date && (!lastDate || v.date>lastDate)) lastDate=v.date; });
+    }catch(e){ err=err||e; }
+    out.push({...f, mCount, sCount, lastDate, err});
+  }
+  return out;
+}
+async function renderSuperConsole(){
+  showMode('super');
+  $('#supForumsList').innerHTML = `<div class="empty">Loading…</div>`;
+  $('#supOverview').innerHTML = `<div class="hero-num">…</div><div class="hero-cap">loading overview</div>`;
+  let forums=[], stats=[], loadErr=null;
+  try{ forums = await forumsListForSuper(); }catch(e){ loadErr=e; }
+  if(!loadErr){ try{ stats = await loadSuperStats(forums); }catch(e){ loadErr=e; } }
+  if(!loadErr){ const bad = stats.find(f=>f.err); if(bad) loadErr = bad.err; }
+  if(loadErr && !forums.length){ // nothing loaded at all: say why, instead of an empty-looking screen
+    $('#supOverview').innerHTML = `<div class="banner" style="grid-column:1/-1;margin:0">${ic('alert')}<div>${esc(explainLoadError(loadErr))}</div></div>
+      <div style="grid-column:1/-1"><button class="btn primary" data-act="refresh-super">Try again</button></div>`;
+    $('#supForumsList').innerHTML = `<div class="empty"><strong>Couldn't load your forums</strong>${esc(explainLoadError(loadErr))}</div>`;
+    return;
+  }
+  const totalMembers = stats.reduce((a,f)=>a+f.mCount,0), totalSessions = stats.reduce((a,f)=>a+f.sCount,0);
+  $('#supOverview').innerHTML = (loadErr?`<div class="banner" style="grid-column:1/-1;margin:0">${ic('alert')}<div>Some numbers could not be loaded. ${esc(explainLoadError(loadErr))}</div></div>`:'')+`<div><div class="hero-num">${totalMembers}</div><div class="hero-cap">members across ${stats.length} forum${stats.length===1?'':'s'}</div></div>
+    <div class="facts"><div class="fact"><b>${stats.length}</b><span>forums</span></div>
+    <div class="fact"><b>${totalSessions}</b><span>sessions total</span></div>
+    <div class="fact"><b>${stats.length?Math.round(totalMembers/stats.length):0}</b><span>avg members / forum</span></div></div>`;
+  $('#supForumsList').innerHTML = stats.map(f=>`
+    <div class="forum-row"><div class="who"><b>${esc(f.name||f.id)}</b><small>${f.mCount} members · ${f.sCount} session${f.sCount===1?'':'s'}${f.lastDate?' · last '+esc(fmtDay(f.lastDate)):''}</small></div>
+      <div class="s-actions"><button class="btn small" data-act="view-roster" data-fid="${esc(f.id)}" data-fname="${esc(f.name||f.id)}">View roster</button>
+      <button class="btn small" data-act="create-forum-admin" data-fid="${esc(f.id)}">Add admin</button></div></div>`).join('')
+    || `<div class="empty"><strong>No forums yet</strong>Create one above to get started.</div>`;
+  const keepForum = $('#supFForum').value;
+  $('#supFForum').innerHTML = `<option value="">Choose a forum…</option>`+forums.map(f=>`<option value="${esc(f.id)}" ${f.id===keepForum?'selected':''}>${esc(f.name||f.id)}</option>`).join('');
+  if(keepForum && forums.some(f=>f.id===keepForum)) loadSupDetail(keepForum, forums.find(f=>f.id===keepForum).name);
+}
+
+/* ---- super-admin "Details": one forum's breakdown, session attendance, and exports ---- */
+let supDetail = { forumId:'', name:'', wing:'All', status:'All', unit:'All', sessionId:'', members:[], sessions:[] };
+async function loadSupDetail(forumId, name){
+  supDetail = { forumId, name, wing:'All', status:'All', unit:'All', sessionId:'', members:[], sessions:[] };
+  $('#supFWing').value='All'; $('#supFStatus').value='All';
+  $('#supDetailsBody').innerHTML = `<div class="empty">Loading…</div>`;
+  try{
+    const [ms, ss] = await Promise.all([cloud.collection('forums/'+forumId+'/members').get(), cloud.collection('forums/'+forumId+'/sessions').get()]);
+    supDetail.members = ms.docs.map(d=>({id:d.id,...d.data()})).filter(m=>m.active!==false);
+    supDetail.sessions = ss.docs.map(d=>{ const v=d.data()||{}; return {id:d.id,name:v.name,date:v.date,attendance:v.attendance||{}}; }).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    supDetail.sessionId = supDetail.sessions[0] ? supDetail.sessions[0].id : '';
+  }catch(e){ $('#supDetailsBody').innerHTML = `<div class="empty"><strong>Could not load this forum</strong>${esc(explainLoadError(e))}</div>`; return; }
+  const units = [...new Set(supDetail.members.map(m=>m.unit).filter(Boolean))].sort();
+  $('#supFUnit').innerHTML = `<option value="All">All</option>`+units.map(u=>`<option>${esc(u)}</option>`).join('');
+  renderSupDetails();
+}
+function supFilteredMembers(){
+  return supDetail.members.filter(m=>(supDetail.wing==='All'||m.wing===supDetail.wing)&&(supDetail.status==='All'||m.status===supDetail.status)&&(supDetail.unit==='All'||m.unit===supDetail.unit));
+}
+function donutSvg(segments, size){
+  size = size||140;
+  const total = segments.reduce((a,s)=>a+s.value,0);
+  const r=size/2-14, cx=size/2, cy=size/2, circ=2*Math.PI*r;
+  let offset=0, arcs='';
+  segments.forEach(s=>{
+    const frac = total? s.value/total : 0, len = frac*circ;
+    if(len>0) arcs += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="20" stroke-dasharray="${len.toFixed(1)} ${(circ-len).toFixed(1)}" stroke-dashoffset="${(-offset).toFixed(1)}" transform="rotate(-90 ${cx} ${cy})"><title>${esc(s.label)}: ${s.value}</title></circle>`;
+    offset += len;
+  });
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="breakdown chart">${arcs}
+    <text x="${cx}" y="${cy-3}" text-anchor="middle" font-family="'Bricolage Grotesque',sans-serif" font-weight="800" font-size="22" fill="var(--ink)">${total}</text>
+    <text x="${cx}" y="${cy+15}" text-anchor="middle" font-size="10" fill="var(--muted)">total</text></svg>`;
+}
+function chartLegend(segments){
+  const total = segments.reduce((a,s)=>a+s.value,0);
+  return `<div class="legend">${segments.map(s=>`<div class="legend-row"><i style="background:${s.color}"></i><span>${esc(s.label)}</span><b>${s.value}</b><span class="muted">${total?Math.round(s.value/total*100):0}%</span></div>`).join('')}</div>`;
+}
+function supTrendSvg(sessions, members){
+  const ss = sessions.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')).slice(-12);
+  if(!ss.length) return '';
+  const W=320,H=150,top=20,bot=26,n=ss.length,bw=W/n,ch=H-top-bot;
+  const counts = ss.map(s=>members.filter(m=>s.attendance[m.id]).length);
+  const max=Math.max(1,...counts);
+  let out='';
+  ss.forEach((s,i)=>{
+    const h=Math.max(counts[i]?3:0,counts[i]/max*ch), x=i*bw+bw*.18, w=bw*.64;
+    out+=`<rect x="${x.toFixed(1)}" y="${(top+ch-h).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="var(--brand)"><title>${esc(s.name)}: ${counts[i]}</title></rect>`
+       +`<text class="val" x="${(x+w/2).toFixed(1)}" y="${(top+ch-h-5).toFixed(1)}" text-anchor="middle">${counts[i]}</text>`
+       +`<text x="${(x+w/2).toFixed(1)}" y="${H-8}" text-anchor="middle">${esc(fmtDay(s.date))}</text>`;
+  });
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="present per session">${out}<line x1="0" x2="${W}" y1="${top+ch+.5}" y2="${top+ch+.5}" stroke="var(--line)"/></svg>`;
+}
+function supCountBar(label,n,total,color){
+  const pct = total? Math.round(n/total*100) : 0;
+  return `<div class="bar-row"><div class="bar-top"><span class="bar-label">${esc(label)}</span><span class="bar-val">${n} of ${total}<em>${pct}%</em></span></div>
+    <div class="bar"><i style="width:${Math.min(100,pct)}%;background:${color}"></i></div></div>`;
+}
+function renderSupDetails(){
+  if(!supDetail.forumId) return;
+  const list = supFilteredMembers();
+  const byWing = WINGS.map(w=>[w, list.filter(m=>m.wing===w).length]);
+  const byStatus = TIERS.map(t=>[t, list.filter(m=>m.status===t).length]);
+  const byUnit = [...new Set(list.map(m=>m.unit))].sort().map(u=>[u, list.filter(m=>m.unit===u).length]);
+  const sess = supDetail.sessions.find(s=>s.id===supDetail.sessionId);
+  const present = sess ? list.filter(m=>sess.attendance[m.id]).sort((a,b)=>(sess.attendance[a.id].t||0)-(sess.attendance[b.id].t||0)) : [];
+  const absent = sess ? list.filter(m=>!sess.attendance[m.id]) : [];
+  const sessOpts = supDetail.sessions.map(s=>`<option value="${esc(s.id)}" ${s.id===supDetail.sessionId?'selected':''}>${esc(s.name)} · ${esc(fmtDay(s.date))}</option>`).join('');
+  const byUnitGrouped = {};
+  for(const m of (sess?list:[])){ (byUnitGrouped[m.unit]=byUnitGrouped[m.unit]||[]).push(m); }
+  const unitSection = sess ? Object.keys(byUnitGrouped).sort().map(u=>{
+    const ms=byUnitGrouped[u], p=ms.filter(m=>sess.attendance[m.id]);
+    return `<div class="bar-row"><div class="bar-top"><span class="bar-label">${esc(u)}</span><span class="bar-val">${p.length} of ${ms.length} present</span></div>
+      <div class="bar"><i style="width:${ms.length?Math.round(p.length/ms.length*100):0}%;background:var(--brand)"></i></div></div>`;
+  }).join('') : '';
+  $('#supDetailsBody').innerHTML = `
+    <div class="facts" style="margin-bottom:14px"><div class="fact"><b>${list.length}</b><span>members (filtered)</span></div>
+      <div class="fact"><b>${supDetail.sessions.length}</b><span>sessions</span></div>
+      <div class="fact"><b>${sess?present.length:'–'}</b><span>present in selected session</span></div></div>
+    <div class="grid2">
+      <div><h3 style="font:700 15px 'Bricolage Grotesque',sans-serif;margin:0 0 10px">By wing</h3>
+        <div class="donut-wrap">${donutSvg(byWing.map(([w,n])=>({label:w,value:n,color:w==='Women'?'#8DBFBD':'#0E5A5F'})))}${chartLegend(byWing.map(([w,n])=>({label:w,value:n,color:w==='Women'?'#8DBFBD':'#0E5A5F'})))}</div></div>
+      <div><h3 style="font:700 15px 'Bricolage Grotesque',sans-serif;margin:0 0 10px">By membership</h3>
+        <div class="donut-wrap">${donutSvg(byStatus.map(([t,n])=>({label:t,value:n,color:TIER_HEX[t]})))}${chartLegend(byStatus.map(([t,n])=>({label:t,value:n,color:TIER_HEX[t]})))}</div></div>
+    </div>
+    ${byUnit.length?`<h3 style="font:700 15px 'Bricolage Grotesque',sans-serif;margin:16px 0 8px">By unit</h3>${byUnit.map(([u,n])=>supCountBar(u,n,list.length,'var(--brand)')).join('')}`:''}
+    ${supDetail.sessions.length>1?`<h3 style="font:700 15px 'Bricolage Grotesque',sans-serif;margin:16px 0 8px">Present per session</h3>${supTrendSvg(supDetail.sessions, supFilteredMembers())}`:''}
+    <h3 style="font:700 15px 'Bricolage Grotesque',sans-serif;margin:16px 0 8px">Session attendance</h3>
+    ${supDetail.sessions.length ? `<select id="supFSession" style="margin-bottom:12px">${sessOpts}</select>
+      ${unitSection}
+      <div class="tabs-inline" style="margin-top:10px"><b style="font-size:14px">Present (${present.length})</b></div>
+      ${present.map(m=>`<div class="result"><div class="who"><b>${esc(m.name)}</b><small>${esc(m.unit)} ${pill(m)}</small></div><span class="tick">${fmtTime(sess.attendance[m.id].t)}</span></div>`).join('')||`<div class="empty">Nobody yet.</div>`}
+      <div class="tabs-inline" style="margin-top:14px"><b style="font-size:14px">Absent (${absent.length})</b></div>
+      ${absent.map(m=>`<div class="result"><div class="who"><b>${esc(m.name)}</b><small>${esc(m.unit)} ${pill(m)}</small></div></div>`).join('')||`<div class="empty">Everyone attended.</div>`}
+      <div class="btn-row" style="margin-top:16px"><button class="btn" data-act="sup-export-excel">${ic('download',16)}Export member list (.xlsx)</button>
+      <button class="btn primary" data-act="sup-export-pdf">${ic('download',16)}Export session report (PDF)</button></div>`
+    : `<div class="empty">This forum has no sessions yet.</div>
+      <div class="btn-row" style="margin-top:12px"><button class="btn" data-act="sup-export-excel">${ic('download',16)}Export member list (.xlsx)</button></div>`}
+  `;
+}
+async function supExportExcel(){
+  const ok = await lib('xlsx'); if(!ok || !window.XLSX){ toast('The Excel writer could not load.','bad'); return; }
+  const list = supFilteredMembers();
+  const rows = list.map(m=>({ 'Member ID':m.id, 'Name':m.name, 'Membership Status':m.status, 'Unit':m.unit, 'Wing':m.wing }));
+  const ws = window.XLSX.utils.json_to_sheet(rows), wb = window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(wb, ws, 'Members');
+  const buf = window.XLSX.write(wb, {type:'array', bookType:'xlsx'});
+  saveFile(`${slug(supDetail.name)}-members.xlsx`, new Blob([buf],{type:'application/octet-stream'}));
+}
+function attendancePdfHtml(title, sess, list, getRec){
+  const byUnitGrouped = {}; for(const m of list){ (byUnitGrouped[m.unit]=byUnitGrouped[m.unit]||[]).push(m); }
+  const units = Object.keys(byUnitGrouped).sort();
+  let totalP=0;
+  const body = units.map(u=>{
+    const ms=byUnitGrouped[u].slice().sort((a,b)=>a.name.localeCompare(b.name));
+    const rows = ms.map(m=>{
+      const rec = getRec(m.id); if(rec) totalP++;
+      return `<tr><td>${esc(m.name)}</td><td>${esc(m.status)}</td><td>${rec?'Present':'Absent'}</td><td>${rec?fmtTime(rec.t):'—'}</td></tr>`;
+    }).join('');
+    const p = ms.filter(m=>getRec(m.id)).length;
+    return `<h3>${esc(u)} <span class="muted">(${p} of ${ms.length} present)</span></h3><table><thead><tr><th>Name</th><th>Membership</th><th>Status</th><th>Arrival</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }).join('');
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(sess.name)} attendance</title><style>
+    body{font-family:Arial,Helvetica,sans-serif;color:#10222B;margin:24px}
+    .bar{padding:10px 14px;background:#eef3f3;margin:-24px -24px 20px;display:flex;gap:12px;align-items:center;font-size:13px}
+    h1{font-size:20px;margin:0 0 4px} h2{font-size:14px;font-weight:500;color:#3E5560;margin:0 0 20px}
+    h3{font-size:15px;margin:22px 0 6px;border-bottom:1px solid #ddd;padding-bottom:4px} .muted{color:#3E5560;font-weight:400;font-size:13px}
+    table{width:100%;border-collapse:collapse;font-size:13px} th,td{text-align:left;padding:5px 8px;border-bottom:1px solid #eee}
+    th{color:#3E5560;font-weight:600} @media print{.bar{display:none}}
+  </style></head><body><div class="bar"><button onclick="window.print()">Print / Save as PDF</button><span>Print at 100% scale.</span></div>
+  <h1>${esc(title)} — ${esc(sess.name)}</h1><h2>${esc(fmtDay(sess.date))} · ${totalP} of ${list.length} present${list.length!==totalP?' (filtered view)':''}</h2>
+  ${body || '<p>No members match the current filters.</p>'}</body></html>`;
+}
+async function buildAttendancePdfBlob(title, sess, list, getRec){
+  const ok = await lib('jspdf'); if(!ok || !window.jspdf) return null;
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({unit:'pt', format:'a4'});
+    const pageW=595.28, margin=40, maxY=800;
+    const colX=[margin, margin+220, margin+350, margin+440];
+    let y=54;
+    const byUnitGrouped = {}; for(const m of list){ (byUnitGrouped[m.unit]=byUnitGrouped[m.unit]||[]).push(m); }
+    const units = Object.keys(byUnitGrouped).sort();
+    const totalP = list.filter(m=>getRec(m.id)).length;
+    doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(16,34,43);
+    doc.text(`${title} \u2014 ${sess.name}`, margin, y); y+=20;
+    doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(90,101,109);
+    doc.text(`${fmtDay(sess.date)} \u00b7 ${totalP} of ${list.length} present`, margin, y); y+=26;
+    function tableHeader(){
+      doc.setFillColor(14,90,95); doc.rect(margin, y-11, pageW-margin*2, 18, 'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(255,255,255);
+      doc.text('Name', colX[0]+4, y); doc.text('Membership', colX[1]+4, y); doc.text('Status', colX[2]+4, y); doc.text('Arrival', colX[3]+4, y);
+      y += 17;
+    }
+    units.forEach(u=>{
+      const ms = byUnitGrouped[u].slice().sort((a,b)=>a.name.localeCompare(b.name));
+      const p = ms.filter(m=>getRec(m.id)).length;
+      if(y+40>maxY){ doc.addPage(); y=50; }
+      doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(16,34,43);
+      doc.text(`${u}  (${p} of ${ms.length} present)`, margin, y); y+=16;
+      tableHeader();
+      ms.forEach((m,i)=>{
+        if(y+15>maxY){ doc.addPage(); y=50; tableHeader(); }
+        if(i%2===0){ doc.setFillColor(244,247,247); doc.rect(margin, y-10, pageW-margin*2, 15, 'F'); }
+        const rec = getRec(m.id);
+        doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(30,38,43);
+        doc.text(String(m.name||'').slice(0,34), colX[0]+4, y);
+        doc.text(String(m.status||''), colX[1]+4, y);
+        doc.setTextColor(...(rec?[23,134,74]:[181,55,42]));
+        doc.text(rec?'Present':'Absent', colX[2]+4, y);
+        doc.setTextColor(30,38,43);
+        doc.text(rec?fmtTime(rec.t):'\u2014', colX[3]+4, y);
+        y += 15;
+      });
+      y += 16;
+    });
+    if(!units.length){ doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(90,101,109); doc.text('No members match the current filters.', margin, y); }
+    return doc.output('blob');
+  }catch(e){ return null; }
+}
+async function exportAttendancePdf(title, sess, list, getRec, filenameBase){
+  toast('Preparing PDF…');
+  const blob = await buildAttendancePdfBlob(title, sess, list, getRec);
+  if(blob){ saveFile(`${filenameBase}.pdf`, blob); }
+  else{ toast('Could not build a PDF directly — opening a printable page instead.','bad'); saveFile(`${filenameBase}.html`, attendancePdfHtml(title, sess, list, getRec)); }
+}
+function downloadSessionPdf(){
+  const D = computeDash();
+  if(D.all || !D.sess[0]){ toast('Pick one specific session above first — PDF export needs a single session.','bad'); return; }
+  const sess = D.sess[0];
+  exportAttendancePdf('CFM Attendance', sess, D.uni, mid=>logIdx.get(lk(sess.id,mid)), `${slug(sess.name)}-${sess.date}-attendance`);
+}
+function supExportPdf(){
+  const sess = supDetail.sessions.find(s=>s.id===supDetail.sessionId); if(!sess) return;
+  const list = supFilteredMembers();
+  exportAttendancePdf(supDetail.name, sess, list, mid=>sess.attendance[mid], `${slug(supDetail.name)}-${sess.date}-attendance`);
+}
+function loginError(msg){ const e=$('#loginErr'); e.hidden=false; e.textContent=msg; $('#loginBusy').textContent=''; }
+let ENTERED_AS = null; // 'super' or 'forum:{id}' — avoids re-initializing (and resetting sync timers) if
+                        // handleAuthedUser runs again for the same already-active session
+async function handleAuthedUser(user){
+  CURRENT_UID = user.uid;
+  const roleCacheKey = 'cfm26.role.'+user.uid;
+  const cached = () => { try{ return JSON.parse(localStorage.getItem(roleCacheKey)||'null'); }catch(e){ return null; } };
+  const useCacheOrFail = (msg) => {
+    const c = cached();
+    if(c && c.role==='forum' && c.forumId){ if(ENTERED_AS!=='forum:'+c.forumId){ ENTERED_AS='forum:'+c.forumId; enterForum(c.forumId); } return true; }
+    loginError(msg); showMode('login'); return true;
+  };
+  if(!(await connectFirestore())){ useCacheOrFail('Could not connect — showing your last saved data on this device. Reload once you\'re back online to sync.'); return; }
+  let adminDoc;
+  try{ adminDoc = await Promise.race([cloud.doc('admins/'+user.uid).get(), sleep(10000).then(()=>{ throw Object.assign(new Error('timeout'),{code:'unavailable'}); })]); }
+  catch(e){ useCacheOrFail('Could not verify your account — showing your last saved data on this device.'); return; }
+  if(!adminDoc.exists){
+    if(cached()){ useCacheOrFail(''); return; }
+    loginError(`No admin role found for this account. In Firestore, create admins/${user.uid} with a role field. (Signed in as ${user.email}, uid: ${user.uid})`); showMode('login'); return;
+  }
+  const d = adminDoc.data();
+  try{ localStorage.setItem(roleCacheKey, JSON.stringify(d)); }catch(e){}
+  const target = d.role==='super' ? 'super' : (d.role==='forum' && d.forumId) ? 'forum:'+d.forumId : null;
+  if(target && target===ENTERED_AS) return; // already fully set up for this exact session — don't re-run init
+  ENTERED_AS = target;
+  if(d.role==='super') renderSuperConsole();
+  else if(d.role==='forum' && d.forumId) enterForum(d.forumId);
+  else{ loginError('Your account has no forum assigned. Ask your super-admin.'); showMode('login'); }
+}
+async function bootstrap(){
+  let auth=null;
+  try{ auth = await Promise.race([window.__authReady, sleep(10000).then(()=>null)]); }catch(e){ auth=null; }
+  if(!auth){ loginError('Could not reach the sign-in service. Check your connection and reload the page.'); showMode('login'); return; }
+  window.__auth = auth;
+  auth.onAuthChange(user=>{
+    if(user) handleAuthedUser(user);
+    else{ stopPolling(); cloud=null; FORUM_ID=null; ENTERED_AS=null; showMode('login'); $('#loginBusy').textContent=''; }
+  });
+}
+bootstrap();
+})();
+</script>
+<script type="module">
+/* Firebase adapter — exposes the same {collection,doc,get,set,update,delete,onSnapshot,limit}
+   shape the app's sync layer already calls, so nothing else in the app needs to know
+   whether it's talking to Firestore or anything else. */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js";
+import {
+  getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot,
+  collection, getDocs, query, limit as qLimit
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js";
+import {
+  getAuth, signInWithEmailAndPassword, signOut as fbSignOut,
+  onAuthStateChanged, createUserWithEmailAndPassword
+} from "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js";
+
+const firebaseConfig = {
+  "apiKey": "AIzaSyA0NPmqDn4xXlh0wqzrFNyNZOKD6JvESdA",
+  "authDomain": "cfm-attendance-255d6.firebaseapp.com",
+  "projectId": "cfm-attendance-255d6",
+  "storageBucket": "cfm-attendance-255d6.firebasestorage.app",
+  "messagingSenderId": "430207494903",
+  "appId": "1:430207494903:web:74f574921a0e583608c1f2"
+};
+
+function flatten(obj, prefix, out){
+  for(const k in obj){
+    const v = obj[k], path = prefix ? prefix+'.'+k : k;
+    const isPlain = v && typeof v==='object' && !Array.isArray(v) && Object.getPrototypeOf(v)===Object.prototype;
+    if(isPlain && Object.keys(v).length>0) flatten(v, path, out);
+    else out[path] = v;
+  }
+  return out;
+}
+function mapErr(e){
+  const code = e && e.code;
+  const err = new Error((e&&e.message)||'firestore error');
+  err.fbCode = code;
+  err.code = code==='not-found' ? 'invalid_argument'
+    : code==='permission-denied' ? 'invalid_argument'
+    : code==='resource-exhausted' ? 'resource_exhausted'
+    : 'unavailable';
+  return err;
+}
+function wrapDoc(dbi, path){
+  const ref = () => doc(dbi, path);
+  return {
+    id: path.split('/').pop(), path,
+    async get(){
+      const s = await getDoc(ref());
+      return { id:s.id, exists:s.exists(), data:()=> s.exists() ? s.data() : undefined };
+    },
+    async set(data){ try{ await setDoc(ref(), data); }catch(e){ throw mapErr(e); } },
+    async update(data){ try{ await updateDoc(ref(), flatten(data,'',{})); }catch(e){ throw mapErr(e); } },
+    async delete(){ try{ await deleteDoc(ref()); }catch(e){ throw mapErr(e); } },
+    onSnapshot(next, err){
+      return onSnapshot(ref(),
+        s=> next({ id:s.id, exists:s.exists(), data:()=> s.exists() ? s.data() : undefined }),
+        e=> err && err(mapErr(e)));
+    },
+    collection(sub){ return wrapCollection(dbi, path+'/'+sub); }
+  };
+}
+function wrapCollection(dbi, path){
+  const base = () => collection(dbi, path);
+  let lim = null;
+  const api = {
+    path,
+    where(){ return api; }, orderBy(){ return api; },
+    limit(n){ lim = n; return api; },
+    doc(id){ return wrapDoc(dbi, path+'/'+(id!==undefined?id:(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2)))); },
+    async add(data){ const r = api.doc(); await r.set(data); return r; },
+    async get(){
+      try{
+        const qq = lim ? query(base(), qLimit(lim)) : base();
+        const snap = await getDocs(qq);
+        const docs = snap.docs.map(d=>({id:d.id, exists:true, data:()=>d.data()}));
+        return { docs, size:docs.length, empty:docs.length===0, docChanges:()=>[] };
+      }catch(e){ throw mapErr(e); }
+    },
+    onSnapshot(next, err){
+      const qq = lim ? query(base(), qLimit(lim)) : base();
+      return onSnapshot(qq, snap=>{
+        const docs = snap.docs.map(d=>({id:d.id, exists:true, data:()=>d.data()}));
+        next({ docs, size:docs.length, empty:docs.length===0, docChanges:()=>[] });
+      }, e=> err && err(mapErr(e)));
+    }
+  };
+  return api;
+}
+
+try{
+  const app = initializeApp(firebaseConfig);
+  const dbi = getFirestore(app);
+  const auth = getAuth(app);
+  window.__fbResolve({ doc:p=>wrapDoc(dbi,p), collection:p=>wrapCollection(dbi,p) });
+  window.__authResolve({
+    onAuthChange(cb){ return onAuthStateChanged(auth, u=> cb(u?{uid:u.uid,email:u.email}:null)); },
+    async signIn(email,password){
+      try{ const cred = await signInWithEmailAndPassword(auth,email,password); return {uid:cred.user.uid,email:cred.user.email}; }
+      catch(e){ const err=new Error(e.message); err.code=e.code; throw err; }
+    },
+    async signOutNow(){ await fbSignOut(auth); },
+    async createForumAdmin(email,password){
+      // A separate, temporary Firebase app instance so creating this account doesn't
+      // sign the current super-admin out (createUserWithEmailAndPassword signs in as the new user).
+      const secApp = initializeApp(firebaseConfig, 'secondary-'+Date.now());
+      const secAuth = getAuth(secApp);
+      try{
+        const cred = await createUserWithEmailAndPassword(secAuth, email, password);
+        const uid = cred.user.uid;
+        await fbSignOut(secAuth);
+        return { uid, email };
+      }catch(e){ const err=new Error(e.message); err.code=e.code; throw err; }
+    }
+  });
+}catch(e){
+  console.error('Firebase failed to initialize:', e);
+  window.__fbResolve(null);
+  window.__authResolve(null);
+}
+</script>
+</body>
+</html>
