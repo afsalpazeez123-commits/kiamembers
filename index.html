@@ -317,6 +317,11 @@ select:disabled{opacity:.65}
       <p style="margin:0 0 12px;color:var(--ink-2)">Scan members from several forums into one shared event. Each check-in is saved straight into that member's own forum — forum admins see it in their normal sessions and dashboard, and can run their own payment counter on the same session afterwards.</p>
       <div id="comboBody"></div>
     </div>
+    <div class="card">
+      <h2>Combined report</h2>
+      <p style="margin:0 0 12px;color:var(--ink-2)">See attendance and payment across several forums for one event, broken down by unit within each forum. Use the same event name and date you used for combined scanning.</p>
+      <div id="combRepBody"></div>
+    </div>
   </div>
 </div>
 
@@ -1468,7 +1473,8 @@ function rowsFromSheet(ws){
     const name = cells.findIndex(c=>c==='name');
     const status = cells.findIndex(c=>c.includes('membership')||c==='status');
     const unit = cells.findIndex(c=>c==='unit');
-    if(name>=0 && unit>=0 && status>=0){ headerIdx=i; col={sno,name,status,unit}; break; }
+    const wing = cells.findIndex(c=>c==='wing');
+    if(name>=0 && unit>=0 && status>=0){ headerIdx=i; col={sno,name,status,unit,wing}; break; }
   }
   if(headerIdx<0) return null;
   const out=[];
@@ -1477,10 +1483,18 @@ function rowsFromSheet(ws){
     if(!name) continue;
     const status=parseTier(r[col.status]), unitRaw=String(r[col.unit]||'').trim();
     if(!status||!unitRaw) continue;
+    const wingRaw = col.wing>=0 ? String(r[col.wing]||'').trim() : '';
     const sno = col.sno>=0 ? parseInt(r[col.sno],10) : NaN;
-    out.push({sno:Number.isFinite(sno)?sno:null, name, status, unitRaw});
+    out.push({sno:Number.isFinite(sno)?sno:null, name, status, unitRaw, wingRaw});
   }
   return out.length ? out : null;
+}
+function parseWing(raw){
+  const t = String(raw||'').trim().toLowerCase();
+  if(!t) return null;
+  if(t.startsWith('wom')||t==='w'||t==='f'||t==='female') return 'Women';
+  if(t.startsWith('men')||t==='m'||t==='male') return 'Men';
+  return null;
 }
 async function importFromExcel(file){
   if(!file) return;
@@ -1496,7 +1510,8 @@ async function importFromExcel(file){
   const parsed = rows.map(r=>{
     if(!r.sno) return null;
     const unit = tidyUnit(r.unitRaw);
-    return { id:newId(r.sno), name:importCleanName(r.name), status:r.status, unit, wing:/vanitha$/i.test(unit)?'Women':'Men' };
+    const wing = parseWing(r.wingRaw) || (/vanitha$/i.test(unit)?'Women':'Men');
+    return { id:newId(r.sno), name:importCleanName(r.name), status:r.status, unit, wing };
   }).filter(Boolean);
   if(!parsed.length){ toast('No usable member rows were found in that file (need a S.No column to match members).','bad'); return; }
   const toAdd=[], toUpdate=[];
@@ -1531,9 +1546,9 @@ async function importFromExcel(file){
 async function downloadImportTemplate(){
   const ok = await lib('xlsx'); if(!ok || !window.XLSX){ toast('The Excel writer could not load. Check your connection.','bad'); return; }
   const rows = [
-    ['S.No','Name','Membership status','Unit'],
-    [1,'Jane Example','Active Associate','Example Unit'],
-    [2,'John Example','Karkoon','Example Unit']
+    ['S.No','Name','Membership status','Unit','Wing'],
+    [1,'Jane Example','Active Associate','Example Unit','Women'],
+    [2,'John Example','Karkoon','Example Unit','Men']
   ];
   const ws = window.XLSX.utils.aoa_to_sheet(rows), wb = window.XLSX.utils.book_new();
   window.XLSX.utils.book_append_sheet(wb, ws, 'Members');
@@ -1788,7 +1803,7 @@ function renderSessions(){
     <button class="btn" data-act="import-xlsx">${ic('upload')}Import from Excel</button>
     ${cloud?`<button class="btn" data-act="import-legacy">${ic('upload')}Import extra members from old data</button>`:''}
     <button class="btn danger" data-act="restore-roster">${ic('undo')}Restore original member list</button></div>
-    <p class="hint" style="margin-top:8px">The file needs columns <b>S.No</b>, <b>Name</b>, <b>Membership status</b> (Rukun / Karkoon / Active Associate) and <b>Unit</b>. S.No becomes each member's permanent ID — re-uploading the same file later updates matching members instead of duplicating them. If you'll ever run a combined event with other forums, give each forum's sheet its own non-overlapping range of S.No values.</p></div>`;
+    <p class="hint" style="margin-top:8px">The file needs columns <b>S.No</b>, <b>Name</b>, <b>Membership status</b> (Rukun / Karkoon / Active Associate) and <b>Unit</b>. A <b>Wing</b> column (Men / Women) is optional — leave it out and it's guessed from the unit name instead. S.No becomes each member's permanent ID — re-uploading the same file later updates matching members instead of duplicating them. If you'll ever run a combined event with other forums, give each forum's sheet its own non-overlapping range of S.No values.</p></div>`;
 }
 function createSession(){
   const name=$('#sName').value.trim().replace(/\s+/g,' '), date=$('#sDate').value;
@@ -1877,11 +1892,17 @@ document.addEventListener('click', async e=>{
     case 'combo-start-cam': comboStartCamera(); break;
     case 'combo-stop-cam': comboStopCamera(); comboShowVerdict('idle'); break;
     case 'combo-flip-cam': comboScan.facing = comboScan.facing==='environment'?'user':'environment'; comboStartCamera(); break;
+    case 'combo-mode': {
+      const v = el.dataset.v==='payment' ? 'payment' : 'checkin';
+      if(combo.mode!==v){ combo.mode=v; renderComboScan(); }
+      break; }
     case 'combo-pick': {
       const fid=el.dataset.fid, mid=el.dataset.id, cands=combo.roster.get(mid)||[], cand=cands.find(c=>c.forumId===fid);
-      if(cand) comboMark(cand);
+      if(cand) comboApply(cand);
       break; }
     case 'combo-end': comboEnd(); break;
+    case 'combrep-generate': combRepGenerate(); break;
+    case 'combrep-pdf': combRepExportPdf(); break;
     case 'sup-export-excel': supExportExcel(); break;
     case 'sup-export-pdf': supExportPdf(); break;
     case 'view-roster': {
@@ -2014,6 +2035,8 @@ document.addEventListener('change', e=>{
   const t=e.target;
   if(t.id==='scanSess'){ state.activeId=t.value; state.dash.scope=t.value; save(); if(cloud) pollActiveSession(); renderHead(); renderScan(); showVerdict('idle'); }
   else if(t.classList && t.classList.contains('comboForumChk')){ if(t.checked) combo.selected.add(t.value); else combo.selected.delete(t.value); }
+  else if(t.classList && t.classList.contains('combRepForumChk')){ if(t.checked) combRep.selected.add(t.value); else combRep.selected.delete(t.value); }
+  else if(t.id==='combRepFilter'){ combRep.filter=t.value; renderCombRepReport(); }
   else if(t.id==='supFForum'){ const opt=t.selectedOptions[0]; if(t.value) loadSupDetail(t.value, opt?opt.textContent:t.value); else{ supDetail={forumId:'',name:'',wing:'All',status:'All',unit:'All',sessionId:'',members:[],sessions:[]}; $('#supDetailsBody').innerHTML=`<div class="empty"><strong>Choose a forum above</strong>See its breakdown, session attendance, and export options.</div>`; } }
   else if(t.id==='supFWing'){ supDetail.wing=t.value; renderSupDetails(); }
   else if(t.id==='supFStatus'){ supDetail.status=t.value; renderSupDetails(); }
@@ -2125,6 +2148,7 @@ async function renderSuperConsole(){
   $('#supFForum').innerHTML = `<option value="">Choose a forum…</option>`+forums.map(f=>`<option value="${esc(f.id)}" ${f.id===keepForum?'selected':''}>${esc(f.name||f.id)}</option>`).join('');
   if(keepForum && forums.some(f=>f.id===keepForum)) loadSupDetail(keepForum, forums.find(f=>f.id===keepForum).name);
   renderComboSetup();
+  renderCombRepSetup();
 }
 
 /* ---- super-admin "Details": one forum's breakdown, session attendance, and exports ---- */
@@ -2331,7 +2355,7 @@ function supExportPdf(){
    Members keep living in their own forum's collection; a combined check-in is written straight
    into that member's own forum/session doc, so forum admins see it in their normal attendance
    (and can run their own payment counter on the very same session id afterwards). */
-let combo = { forums:[], selected:new Set(), name:'', date:todayStr(), active:false, sid:'', roster:new Map(), log:[], verdictT:0 };
+let combo = { forums:[], selected:new Set(), name:'', date:todayStr(), active:false, sid:'', roster:new Map(), log:[], verdictT:0, mode:'checkin' };
 const comboScan = {stream:null,raf:0,detector:null,facing:'environment',busy:false,lastT:0,last:{code:'',t:0}};
 function codeToId(raw){
   const mm = /CFM26-([0-9A-Z]{3,8})/i.exec(String(raw).trim());
@@ -2395,8 +2419,14 @@ async function comboStart(){
 function renderComboScan(){
   const tallies=new Map(); for(const r of combo.log) tallies.set(r.forumId,(tallies.get(r.forumId)||0)+1);
   const breakdown = [...combo.selected].map(fid=>{ const f=combo.forums.find(x=>x.id===fid); return `${esc(f?f.name||fid:fid)}: ${tallies.get(fid)||0}`; }).join(' · ');
+  const paidTallies=new Map(); for(const r of combo.log) if(r.paid) paidTallies.set(r.forumId,(paidTallies.get(r.forumId)||0)+1);
+  const paidBreakdown = [...combo.selected].map(fid=>{ const f=combo.forums.find(x=>x.id===fid); return `${esc(f?f.name||fid:fid)}: ${paidTallies.get(fid)||0}`; }).join(' · ');
   $('#comboBody').innerHTML = `
-    <div class="banner">${ic('alert')}<div>Scanning for <b>${esc(combo.name)}</b> · ${esc(fmtDay(combo.date))} — ${breakdown}</div></div>
+    <div class="banner">${ic('alert')}<div>Scanning for <b>${esc(combo.name)}</b> · ${esc(fmtDay(combo.date))} — Present: ${breakdown} — Paid: ${paidBreakdown}</div></div>
+    <div class="seg" role="group" aria-label="Scan mode" style="margin-bottom:14px">
+      <button data-act="combo-mode" data-v="checkin" id="comboModeCheckin" aria-pressed="${combo.mode!=='payment'}">Attendance</button>
+      <button data-act="combo-mode" data-v="payment" id="comboModePayment" aria-pressed="${combo.mode==='payment'}">Payment</button>
+    </div>
     <div class="viewport" id="comboViewport">
       <video id="comboVideo" playsinline muted></video>
       <div class="reticle"><i></i><i></i><i></i><i></i></div>
@@ -2412,12 +2442,12 @@ function renderComboScan(){
     </div>
     <div class="verdict is-idle" id="comboVerdict" role="status" aria-live="polite"></div>
     <div class="card">
-      <h2>Check in by name or ID</h2>
+      <h2>${combo.mode==='payment'?'Mark paid by name or ID':'Check in by name or ID'}</h2>
       <input type="search" id="comboLookupQ" placeholder="Name, unit or ID (CFM26-023)" autocomplete="off" enterkeyhint="done">
       <div id="comboLookupRes"></div>
     </div>
     <div class="card">
-      <h2>Recent check-ins</h2>
+      <h2>${combo.mode==='payment'?'Recent payments':'Recent check-ins'}</h2>
       <div id="comboRecent"></div>
     </div>
     <div class="btn-row"><button class="btn danger" data-act="combo-end">${ic('x')}End combined scanning</button></div>`;
@@ -2427,13 +2457,16 @@ function renderComboScan(){
   comboShowVerdict('idle');
 }
 function comboRenderLists(){
-  const recent = combo.log.slice().sort((a,b)=>b.t-a.t).slice(0,8);
-  $('#comboRecent').innerHTML = recent.length ? recent.map(r=>`<div class="result"><div class="who"><b>${esc(r.name)}</b><small>${esc(r.forumName)}</small></div><span class="tick">${fmtTime(r.t)}</span></div>`).join('')
-    : `<div class="empty"><strong>No check-ins yet</strong>Scan a QR code or search for a member above.</div>`;
+  const pay = combo.mode==='payment';
+  const rows = pay ? combo.log.filter(r=>r.paid) : combo.log;
+  const recent = rows.slice().sort((a,b)=>(pay?b.paidT:b.t)-(pay?a.paidT:a.t)).slice(0,8);
+  $('#comboRecent').innerHTML = recent.length ? recent.map(r=>`<div class="result"><div class="who"><b>${esc(r.name)}</b><small>${esc(r.forumName)}${!pay && r.paid?' · Paid':''}</small></div><span class="tick">${fmtTime(pay?r.paidT:r.t)}</span></div>`).join('')
+    : `<div class="empty"><strong>No ${pay?'payments':'check-ins'} yet</strong>Scan a QR code or search for a member above.</div>`;
   comboRenderLookup();
 }
 function comboRenderLookup(){
   const q=$('#comboLookupQ'); if(!q) return;
+  const pay = combo.mode==='payment';
   const val=q.value, box=$('#comboLookupRes'), toks=norm(val).split(' ').filter(Boolean);
   if(!toks.length){ box.innerHTML=''; return; }
   const out=[];
@@ -2444,9 +2477,10 @@ function comboRenderLookup(){
     }
   }
   box.innerHTML = out.length ? `<div style="margin-top:8px">`+out.map(c=>{
-    const already = combo.log.some(r=>r.forumId===c.forumId && r.id===c.id);
+    const ex = combo.log.find(r=>r.forumId===c.forumId && r.id===c.id);
+    const done = pay ? !!(ex && ex.paid) : !!ex;
     return `<div class="result"><div class="who"><b>${esc(c.name)}</b><small>${esc(c.forumName)} · ${esc(c.unit||'')}<span>${c.id}</span></small></div>`+
-      (already ? `<span class="tick">${ic('check',16)}checked in</span>` : `<button class="btn small primary" data-act="combo-pick" data-fid="${esc(c.forumId)}" data-id="${esc(c.id)}">Check in</button>`)+`</div>`;
+      (done ? `<span class="tick">${ic('check',16)}${pay?'paid':'checked in'}</span>` : `<button class="btn small primary" data-act="combo-pick" data-fid="${esc(c.forumId)}" data-id="${esc(c.id)}">${pay?'Mark paid':'Check in'}</button>`)+`</div>`;
   }).join('')+`</div>` : `<p class="hint">No member matches “${esc(val)}”.</p>`;
 }
 function comboShowVerdict(kind,d={}){
@@ -2459,7 +2493,9 @@ function comboShowVerdict(kind,d={}){
     meta=`<span class="v-hint">${comboScan.stream?'Hold a member’s QR code inside the frame.':'Start the camera or search by name below.'}</span>`;
   }else if(kind==='ok' || kind==='dup'){
     const c=d.cand; icon = kind==='ok'?'check':'alert';
-    title = kind==='ok' ? 'Checked in' : 'Already checked in';
+    title = d.paid
+      ? (kind==='ok' ? (d.wasCheckedIn ? 'Marked as paid' : 'Checked in and marked as paid') : 'Already paid')
+      : (kind==='ok' ? 'Checked in' : 'Already checked in');
     name = c.name;
     meta = `<span>${esc(c.forumName)}</span><span>${esc(c.unit||'')}</span><span>${kind==='ok'?'':'at '}${fmtTime(d.t)}</span>`;
   }else if(kind==='choose'){
@@ -2471,11 +2507,11 @@ function comboShowVerdict(kind,d={}){
   el.innerHTML = `<div class="v-icon">${ic(icon,28)}</div><div class="v-main"><div class="v-title">${esc(title)}</div>${name?`<div class="v-name">${esc(name)}</div>`:''}<div class="v-meta">${meta}</div></div>`;
   if(kind!=='idle' && kind!=='choose') combo.verdictT = setTimeout(()=>comboShowVerdict('idle'),8000);
 }
-async function comboWriteAttendance(forumId,mid,t){
-  try{ await cloud.collection('forums/'+forumId+'/sessions').doc(combo.sid).update({attendance:{[mid]:{t,src:'scan'}}}); }
+async function comboWriteAttendance(forumId,mid,payload){
+  try{ await cloud.collection('forums/'+forumId+'/sessions').doc(combo.sid).update({attendance:{[mid]:payload}}); }
   catch(e){
     if(e && e.code==='invalid_argument'){
-      try{ await cloud.collection('forums/'+forumId+'/sessions').doc(combo.sid).set({name:combo.name,date:combo.date,attendance:{[mid]:{t,src:'scan'}}}); return; }catch(e2){}
+      try{ await cloud.collection('forums/'+forumId+'/sessions').doc(combo.sid).set({name:combo.name,date:combo.date,attendance:{[mid]:payload}}); return; }catch(e2){}
     }
     toast('Could not save that check-in — check your connection.','bad');
   }
@@ -2485,16 +2521,32 @@ function comboMark(cand){
   if(ex){ comboShowVerdict('dup',{cand,t:ex.t}); feedback('dup'); return; }
   const t=Date.now();
   combo.log.push({forumId:cand.forumId, forumName:cand.forumName, id:cand.id, name:cand.name, t});
-  comboWriteAttendance(cand.forumId, cand.id, t);
+  comboWriteAttendance(cand.forumId, cand.id, {t,src:'scan'});
   comboShowVerdict('ok',{cand,t}); feedback('ok');
   comboRenderLists();
+}
+function comboMarkPaid(cand){
+  const ex = combo.log.find(r=>r.forumId===cand.forumId && r.id===cand.id);
+  if(ex && ex.paid){ comboShowVerdict('dup',{cand,t:ex.paidT,paid:true}); feedback('dup'); return; }
+  const t=Date.now(), wasCheckedIn=!!ex;
+  const rec = ex || {forumId:cand.forumId, forumName:cand.forumName, id:cand.id, name:cand.name, t};
+  if(!ex) combo.log.push(rec);
+  rec.paid=true; rec.paidT=t; rec.paidSrc='scan';
+  const payload = {paid:true,paidT:t,paidSrc:'scan'};
+  if(!wasCheckedIn){ payload.t=t; payload.src='payment'; }
+  comboWriteAttendance(cand.forumId, cand.id, payload);
+  comboShowVerdict('ok',{cand,t,paid:true,wasCheckedIn}); feedback('ok');
+  comboRenderLists();
+}
+function comboApply(cand){
+  if(combo.mode==='payment') comboMarkPaid(cand); else comboMark(cand);
 }
 function comboHandleCode(raw){
   const id=codeToId(raw);
   if(!id){ comboShowVerdict('bad',{title:'Code not recognised',text:'This is not a CFM member code.'}); feedback('bad'); return; }
   const cands = combo.roster.get(id);
   if(!cands || !cands.length){ comboShowVerdict('bad',{title:'Not in the selected forums',text:id}); feedback('bad'); return; }
-  if(cands.length===1){ comboMark(cands[0]); return; }
+  if(cands.length===1){ comboApply(cands[0]); return; }
   comboShowVerdict('choose',{cands});
 }
 async function comboStartCamera(){
@@ -2546,8 +2598,135 @@ async function comboTick(now){
 }
 function comboEnd(){
   comboStopCamera();
-  combo.active=false; combo.roster=new Map(); combo.log=[];
+  combo.active=false; combo.roster=new Map(); combo.log=[]; combo.mode='checkin';
   renderComboSetup();
+}
+
+/* ---- super-admin "Combined report": attendance + payment across several forums, by unit ---- */
+let combRep = { forums:[], selected:new Set(), name:'', date:'', sid:'', filter:'All', data:null };
+async function renderCombRepSetup(){
+  const box=$('#combRepBody'); if(!box) return;
+  box.innerHTML = `<div class="empty">Loading forums…</div>`;
+  try{ combRep.forums = await forumsListForSuper(); }
+  catch(e){ box.innerHTML = `<div class="empty"><strong>Could not load forums</strong>${esc(explainLoadError(e))}</div>`; return; }
+  box.innerHTML = `
+    <div class="field" style="margin-bottom:10px"><label>Forums to include</label>
+      <div class="stack" style="gap:6px">${combRep.forums.map(f=>`<label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500">
+        <input type="checkbox" class="combRepForumChk" value="${esc(f.id)}" ${combRep.selected.has(f.id)?'checked':''}> ${esc(f.name||f.id)}</label>`).join('')||'<span class="hint">No forums yet — create one above first.</span>'}</div>
+    </div>
+    <div class="form-grid">
+      <div class="field"><label for="combRepName">Event name</label><input type="text" id="combRepName" placeholder="e.g. Annual Gathering" value="${esc(combRep.name)}"></div>
+      <div class="field"><label for="combRepDate">Date</label><input type="date" id="combRepDate" value="${esc(combRep.date)}"></div>
+      <button class="btn primary" data-act="combrep-generate">${ic('table')}Generate report</button>
+    </div>
+    <div id="combRepReport"></div>`;
+  if(combRep.data) renderCombRepReport();
+}
+async function combRepGenerate(){
+  const name=$('#combRepName').value.trim().replace(/\s+/g,' '), date=$('#combRepDate').value;
+  const fids=[...combRep.selected];
+  if(!fids.length){ toast('Pick at least one forum.','bad'); return; }
+  if(!name){ toast('Enter the event name.','bad'); return; }
+  if(!date){ toast('Choose the date.','bad'); return; }
+  combRep.name=name; combRep.date=date; combRep.sid=makeSid(name,date); combRep.filter='All';
+  $('#combRepReport').innerHTML = `<div class="empty">Loading…</div>`;
+  const byForum=[];
+  try{
+    for(const fid of fids){
+      const forum=combRep.forums.find(f=>f.id===fid), fname=forum?(forum.name||fid):fid;
+      const [ms,sdoc] = await Promise.all([
+        cloud.collection('forums/'+fid+'/members').get(),
+        cloud.collection('forums/'+fid+'/sessions').doc(combRep.sid).get()
+      ]);
+      const att = (sdoc.exists && sdoc.data() && sdoc.data().attendance) || {};
+      const entries = ms.docs.filter(d=>{ const v=d.data()||{}; return v.active!==false; }).map(d=>{
+        const v=d.data()||{}, a=att[d.id];
+        return { forumId:fid, forumName:fname, id:d.id, name:v.name, unit:v.unit||'Unassigned', wing:v.wing, status:v.status, present:!!a, t:a?a.t:null, paid:!!(a&&a.paid), paidT:a?a.paidT:null };
+      });
+      byForum.push({id:fid, name:fname, entries});
+    }
+  }catch(e){ $('#combRepReport').innerHTML = `<div class="empty"><strong>Could not load the report</strong>${esc(explainLoadError(e))}</div>`; return; }
+  combRep.data = byForum;
+  renderCombRepReport();
+}
+function renderCombRepReport(){
+  if(!combRep.data) return;
+  const forums = combRep.filter==='All' ? combRep.data : combRep.data.filter(f=>f.id===combRep.filter);
+  const allEntries = combRep.data.flatMap(f=>f.entries);
+  const totalPresent = allEntries.filter(e=>e.present).length, totalPaid = allEntries.filter(e=>e.paid).length;
+  const filterOpts = `<option value="All">All forums</option>`+combRep.data.map(f=>`<option value="${esc(f.id)}" ${combRep.filter===f.id?'selected':''}>${esc(f.name)}</option>`).join('');
+  const sections = forums.map(f=>{
+    const total=f.entries.length, present=f.entries.filter(e=>e.present).length, paid=f.entries.filter(e=>e.paid).length;
+    const units=[...new Set(f.entries.map(e=>e.unit))].sort();
+    const bars = units.map(u=>{
+      const ue=f.entries.filter(e=>e.unit===u);
+      return supCountBar(u, ue.filter(e=>e.present).length, ue.length, 'var(--brand)')+
+             supCountBar(u+' · paid', ue.filter(e=>e.paid).length, ue.length, '#b5862a');
+    }).join('');
+    return `<div class="card"><h3 style="font:700 15px 'Bricolage Grotesque',sans-serif;margin:0 0 10px">${esc(f.name)} <span class="muted" style="font-weight:400;font-size:13px">(${present} of ${total} present · ${paid} paid)</span></h3>${bars||'<p class="hint">No members in this forum.</p>'}</div>`;
+  }).join('');
+  $('#combRepReport').innerHTML = `
+    <div class="banner">${ic('alert')}<div><b>${esc(combRep.name)}</b> · ${esc(fmtDay(combRep.date))} — ${totalPresent} of ${allEntries.length} present across ${combRep.data.length} forum${combRep.data.length===1?'':'s'}, ${totalPaid} paid.</div></div>
+    <div class="field" style="margin:10px 0"><label for="combRepFilter">Filter by forum</label><select id="combRepFilter">${filterOpts}</select></div>
+    ${sections || '<div class="empty">No members found.</div>'}
+    <div class="btn-row"><button class="btn primary" data-act="combrep-pdf">${ic('download',16)}Export combined report (PDF)</button></div>`;
+}
+async function combRepExportPdf(){
+  if(!combRep.data) return;
+  toast('Preparing PDF…');
+  const ok = await lib('jspdf');
+  if(!ok || !window.jspdf){ toast('Could not build a PDF — check your connection.','bad'); return; }
+  const forums = combRep.filter==='All' ? combRep.data : combRep.data.filter(f=>f.id===combRep.filter);
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({unit:'pt', format:'a4'});
+    const pageW=595.28, margin=40, maxY=800;
+    const colX=[margin, margin+180, margin+290, margin+360, margin+435];
+    let y=54;
+    doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(16,34,43);
+    doc.text(`${combRep.name} — combined report`, margin, y); y+=20;
+    doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(90,101,109);
+    doc.text(fmtDay(combRep.date), margin, y); y+=26;
+    function tableHeader(){
+      doc.setFillColor(14,90,95); doc.rect(margin, y-11, pageW-margin*2, 18, 'F');
+      doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(255,255,255);
+      doc.text('Name', colX[0]+4, y); doc.text('Membership', colX[1]+4, y); doc.text('Status', colX[2]+4, y); doc.text('Arrival', colX[3]+4, y); doc.text('Paid', colX[4]+4, y);
+      y += 17;
+    }
+    forums.forEach(f=>{
+      if(y+40>maxY){ doc.addPage(); y=50; }
+      const present=f.entries.filter(e=>e.present).length, paid=f.entries.filter(e=>e.paid).length;
+      doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(16,34,43);
+      doc.text(`${f.name}  (${present} of ${f.entries.length} present · ${paid} paid)`, margin, y); y+=18;
+      const byUnit={}; f.entries.forEach(e=>{ (byUnit[e.unit]=byUnit[e.unit]||[]).push(e); });
+      Object.keys(byUnit).sort().forEach(u=>{
+        const ms = byUnit[u].slice().sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+        const p = ms.filter(e=>e.present).length;
+        if(y+32>maxY){ doc.addPage(); y=50; }
+        doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(16,34,43);
+        doc.text(`${u}  (${p} of ${ms.length} present)`, margin+6, y); y+=14;
+        tableHeader();
+        ms.forEach((e,i)=>{
+          if(y+15>maxY){ doc.addPage(); y=50; tableHeader(); }
+          if(i%2===0){ doc.setFillColor(244,247,247); doc.rect(margin, y-10, pageW-margin*2, 15, 'F'); }
+          doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(30,38,43);
+          doc.text(String(e.name||'').slice(0,34), colX[0]+4, y);
+          doc.text(String(e.status||''), colX[1]+4, y);
+          doc.setTextColor(...(e.present?[23,134,74]:[181,55,42]));
+          doc.text(e.present?'Present':'Absent', colX[2]+4, y);
+          doc.setTextColor(30,38,43);
+          doc.text(e.present?fmtTime(e.t):'—', colX[3]+4, y);
+          doc.setTextColor(...(e.paid?[23,134,74]:[150,160,165]));
+          doc.text(e.paid?'Paid':'—', colX[4]+4, y);
+          doc.setTextColor(30,38,43);
+          y += 15;
+        });
+        y += 10;
+      });
+      y += 10;
+    });
+    saveFile(`${slug(combRep.name)}-${combRep.date}-combined-report.pdf`, doc.output('blob'));
+  }catch(e){ toast('Could not build the PDF.','bad'); }
 }
 function loginError(msg){ const e=$('#loginErr'); e.hidden=false; e.textContent=msg; $('#loginBusy').textContent=''; }
 let ENTERED_AS = null; // 'super' or 'forum:{id}' — avoids re-initializing (and resetting sync timers) if
