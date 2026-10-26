@@ -312,6 +312,11 @@ select:disabled{opacity:.65}
       </div>
       <div id="supDetailsBody"><div class="empty"><strong>Choose a forum above</strong>See its breakdown, session attendance, and export options.</div></div>
     </div>
+    <div class="card">
+      <h2>Combined scanning across forums</h2>
+      <p style="margin:0 0 12px;color:var(--ink-2)">Scan members from several forums into one shared event. Each check-in is saved straight into that member's own forum — forum admins see it in their normal sessions and dashboard, and can run their own payment counter on the same session afterwards.</p>
+      <div id="comboBody"></div>
+    </div>
   </div>
 </div>
 
@@ -1220,16 +1225,17 @@ async function tick(now){
   }catch(e){}
   scan.busy=false;
 }
-async function decodeFrame(v){
-  if(scan.detector){
-    try{ const r=await scan.detector.detect(v); if(r&&r.length) return r[0].rawValue; return null; }
-    catch(e){ scan.detector=null; }
+async function decodeFrame(v, st){
+  st = st || scan;
+  if(st.detector){
+    try{ const r=await st.detector.detect(v); if(r&&r.length) return r[0].rawValue; return null; }
+    catch(e){ st.detector=null; }
   }
   if(typeof jsQR==='undefined') return null;
   const s=Math.min(1,720/Math.max(v.videoWidth,v.videoHeight)), w=Math.round(v.videoWidth*s), h=Math.round(v.videoHeight*s);
-  if(!scan.cv){ scan.cv=document.createElement('canvas'); scan.g=scan.cv.getContext('2d',{willReadFrequently:true}); }
-  scan.cv.width=w; scan.cv.height=h; scan.g.drawImage(v,0,0,w,h);
-  const d=scan.g.getImageData(0,0,w,h);
+  if(!st.cv){ st.cv=document.createElement('canvas'); st.g=st.cv.getContext('2d',{willReadFrequently:true}); }
+  st.cv.width=w; st.cv.height=h; st.g.drawImage(v,0,0,w,h);
+  const d=st.g.getImageData(0,0,w,h);
   const r=jsQR(d.data,w,h,{inversionAttempts:'dontInvert'});
   return r ? r.data : null;
 }
@@ -1522,6 +1528,18 @@ async function importFromExcel(file){
   toast(`Imported from “${usedSheet}”: ${toAdd.length} added, ${toUpdate.length} updated.`);
   refresh();
 }
+async function downloadImportTemplate(){
+  const ok = await lib('xlsx'); if(!ok || !window.XLSX){ toast('The Excel writer could not load. Check your connection.','bad'); return; }
+  const rows = [
+    ['S.No','Name','Membership status','Unit'],
+    [1,'Jane Example','Active Associate','Example Unit'],
+    [2,'John Example','Karkoon','Example Unit']
+  ];
+  const ws = window.XLSX.utils.aoa_to_sheet(rows), wb = window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(wb, ws, 'Members');
+  const buf = window.XLSX.write(wb, {type:'array', bookType:'xlsx'});
+  saveFile('CFM-member-import-template.xlsx', new Blob([buf],{type:'application/octet-stream'}));
+}
 async function downloadZip(){
   const btn=$('#btnZip'), prog=$('#bulkProgress');
   if(typeof qrcode==='undefined' && !(await lib('qr'))){ toast('The QR library could not load.','bad'); return; }
@@ -1766,9 +1784,11 @@ function renderSessions(){
     <button class="btn danger" data-act="reset-all">${ic('trash')}Erase all check-ins</button></div></div>
   <div class="card"><h2>Member list</h2>
     <p style="margin:0 0 12px;color:var(--ink-2)">${MEMBERS.length} members. Add, edit or delete members from the Members tab.${cloud?' Changes there sync to every phone.':' Member changes are saved on this device only. Make them on one device, since importing a backup adds members and check-ins but does not copy edits or deletions.'}</p>
-    <div class="btn-row"><button class="btn" data-act="import-xlsx">${ic('upload')}Import from Excel</button>
+    <div class="btn-row"><button class="btn" data-act="dl-import-template">${ic('download')}Download import template (.xlsx)</button>
+    <button class="btn" data-act="import-xlsx">${ic('upload')}Import from Excel</button>
     ${cloud?`<button class="btn" data-act="import-legacy">${ic('upload')}Import extra members from old data</button>`:''}
-    <button class="btn danger" data-act="restore-roster">${ic('undo')}Restore original member list</button></div></div>`;
+    <button class="btn danger" data-act="restore-roster">${ic('undo')}Restore original member list</button></div>
+    <p class="hint" style="margin-top:8px">The file needs columns <b>S.No</b>, <b>Name</b>, <b>Membership status</b> (Rukun / Karkoon / Active Associate) and <b>Unit</b>. S.No becomes each member's permanent ID — re-uploading the same file later updates matching members instead of duplicating them. If you'll ever run a combined event with other forums, give each forum's sheet its own non-overlapping range of S.No values.</p></div>`;
 }
 function createSession(){
   const name=$('#sName').value.trim().replace(/\s+/g,' '), date=$('#sDate').value;
@@ -1853,6 +1873,15 @@ document.addEventListener('click', async e=>{
       catch(e){ toast('Could not create that forum — check your connection.','bad'); }
       break; }
     case 'refresh-super': renderSuperConsole(); break;
+    case 'combo-start': comboStart(); break;
+    case 'combo-start-cam': comboStartCamera(); break;
+    case 'combo-stop-cam': comboStopCamera(); comboShowVerdict('idle'); break;
+    case 'combo-flip-cam': comboScan.facing = comboScan.facing==='environment'?'user':'environment'; comboStartCamera(); break;
+    case 'combo-pick': {
+      const fid=el.dataset.fid, mid=el.dataset.id, cands=combo.roster.get(mid)||[], cand=cands.find(c=>c.forumId===fid);
+      if(cand) comboMark(cand);
+      break; }
+    case 'combo-end': comboEnd(); break;
     case 'sup-export-excel': supExportExcel(); break;
     case 'sup-export-pdf': supExportPdf(); break;
     case 'view-roster': {
@@ -1926,6 +1955,7 @@ document.addEventListener('click', async e=>{
     case 'import-legacy': importLegacyExtraMembers(); break;
     case 'import-legacy-sessions': importLegacySessions(); break;
     case 'import-xlsx': $('#importXlsx').click(); break;
+    case 'dl-import-template': downloadImportTemplate(); break;
     case 'modal-mark': { const m=byId.get(id); mark(id,'manual'); toast(`${m.name} checked in.`); closeModal(); refresh(); break; }
     case 'modal-unmark': { unmark(id); toast('Check-in removed.'); closeModal(); refresh(); break; }
     case 'modal-mark-paid': { const m=byId.get(id); markPaid(id); toast(`${m.name} marked as paid.`); closeModal(); refresh(); break; }
@@ -1983,6 +2013,7 @@ document.addEventListener('keydown', e=>{
 document.addEventListener('change', e=>{
   const t=e.target;
   if(t.id==='scanSess'){ state.activeId=t.value; state.dash.scope=t.value; save(); if(cloud) pollActiveSession(); renderHead(); renderScan(); showVerdict('idle'); }
+  else if(t.classList && t.classList.contains('comboForumChk')){ if(t.checked) combo.selected.add(t.value); else combo.selected.delete(t.value); }
   else if(t.id==='supFForum'){ const opt=t.selectedOptions[0]; if(t.value) loadSupDetail(t.value, opt?opt.textContent:t.value); else{ supDetail={forumId:'',name:'',wing:'All',status:'All',unit:'All',sessionId:'',members:[],sessions:[]}; $('#supDetailsBody').innerHTML=`<div class="empty"><strong>Choose a forum above</strong>See its breakdown, session attendance, and export options.</div>`; } }
   else if(t.id==='supFWing'){ supDetail.wing=t.value; renderSupDetails(); }
   else if(t.id==='supFStatus'){ supDetail.status=t.value; renderSupDetails(); }
@@ -2002,6 +2033,7 @@ document.addEventListener('change', e=>{
 document.addEventListener('input', e=>{
   const t=e.target;
   if(t.id==='lookupQ') renderLookup();
+  else if(t.id==='comboLookupQ') comboRenderLookup();
   else if(t.id==='mq'){ state.mem.q=t.value; renderMembersList(); }
   else if(t.id==='fUnitNew') syncUnitFields();
   else if(t.id==='dq'){ state.dash.q=t.value; state.dash.limit=50; renderDashList(); }
@@ -2092,6 +2124,7 @@ async function renderSuperConsole(){
   const keepForum = $('#supFForum').value;
   $('#supFForum').innerHTML = `<option value="">Choose a forum…</option>`+forums.map(f=>`<option value="${esc(f.id)}" ${f.id===keepForum?'selected':''}>${esc(f.name||f.id)}</option>`).join('');
   if(keepForum && forums.some(f=>f.id===keepForum)) loadSupDetail(keepForum, forums.find(f=>f.id===keepForum).name);
+  renderComboSetup();
 }
 
 /* ---- super-admin "Details": one forum's breakdown, session attendance, and exports ---- */
@@ -2292,6 +2325,229 @@ function supExportPdf(){
   const sess = supDetail.sessions.find(s=>s.id===supDetail.sessionId); if(!sess) return;
   const list = supFilteredMembers();
   exportAttendancePdf(supDetail.name, sess, list, mid=>sess.attendance[mid], `${slug(supDetail.name)}-${sess.date}-attendance`);
+}
+
+/* ---- super-admin "Combined scanning": one scanner, members pooled from several forums ----
+   Members keep living in their own forum's collection; a combined check-in is written straight
+   into that member's own forum/session doc, so forum admins see it in their normal attendance
+   (and can run their own payment counter on the very same session id afterwards). */
+let combo = { forums:[], selected:new Set(), name:'', date:todayStr(), active:false, sid:'', roster:new Map(), log:[], verdictT:0 };
+const comboScan = {stream:null,raf:0,detector:null,facing:'environment',busy:false,lastT:0,last:{code:'',t:0}};
+function codeToId(raw){
+  const mm = /CFM26-([0-9A-Z]{3,8})/i.exec(String(raw).trim());
+  if(!mm) return null;
+  let suf = mm[1].toUpperCase();
+  if(/^\d+$/.test(suf)) suf = String(+suf).padStart(3,'0');
+  return 'CFM26-'+suf;
+}
+async function renderComboSetup(){
+  const box=$('#comboBody'); if(!box) return;
+  if(combo.active){ renderComboScan(); return; }
+  box.innerHTML = `<div class="empty">Loading forums…</div>`;
+  try{ combo.forums = await forumsListForSuper(); }
+  catch(e){ box.innerHTML = `<div class="empty"><strong>Could not load forums</strong>${esc(explainLoadError(e))}</div>`; return; }
+  box.innerHTML = `
+    <div class="field" style="margin-bottom:10px"><label>Forums taking part</label>
+      <div class="stack" style="gap:6px">${combo.forums.map(f=>`<label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500">
+        <input type="checkbox" class="comboForumChk" value="${esc(f.id)}" ${combo.selected.has(f.id)?'checked':''}> ${esc(f.name||f.id)}</label>`).join('')||'<span class="hint">No forums yet — create one above first.</span>'}</div>
+    </div>
+    <div class="form-grid">
+      <div class="field"><label for="comboName">Event name</label><input type="text" id="comboName" placeholder="e.g. Annual Gathering" value="${esc(combo.name)}"></div>
+      <div class="field"><label for="comboDate">Date</label><input type="date" id="comboDate" value="${esc(combo.date)}"></div>
+      <button class="btn primary" data-act="combo-start">${ic('scan')}Start combined scanning</button>
+    </div>
+    <p class="hint" style="margin-top:8px">If two forums happen to use the same member ID, you'll be asked to pick the right person at scan time — give each forum's roster its own range of ID numbers when you import it to avoid that.</p>`;
+}
+async function comboStart(){
+  const name=$('#comboName').value.trim().replace(/\s+/g,' '), date=$('#comboDate').value;
+  const fids=[...combo.selected];
+  if(!fids.length){ toast('Pick at least one forum.','bad'); return; }
+  if(!name){ toast('Enter an event name.','bad'); return; }
+  if(!date){ toast('Choose a date.','bad'); return; }
+  combo.name=name; combo.date=date; combo.sid=makeSid(name,date);
+  combo.roster=new Map(); combo.log=[];
+  toast('Loading members…');
+  try{
+    for(const fid of fids){
+      const forum = combo.forums.find(f=>f.id===fid), fname = forum ? (forum.name||fid) : fid;
+      const [ms, sdoc] = await Promise.all([
+        cloud.collection('forums/'+fid+'/members').get(),
+        cloud.collection('forums/'+fid+'/sessions').doc(combo.sid).get()
+      ]);
+      ms.docs.forEach(d=>{
+        const v=d.data()||{}; if(v.active===false) return;
+        const entry = {forumId:fid, forumName:fname, id:d.id, name:v.name, unit:v.unit, wing:v.wing, status:v.status};
+        if(!combo.roster.has(d.id)) combo.roster.set(d.id,[]);
+        combo.roster.get(d.id).push(entry);
+      });
+      const att = (sdoc.exists && sdoc.data() && sdoc.data().attendance) || {};
+      for(const mid in att){
+        const cands = combo.roster.get(mid), cand = cands && cands.find(c=>c.forumId===fid);
+        if(cand) combo.log.push({forumId:fid, forumName:fname, id:mid, name:cand.name, t:att[mid].t});
+      }
+      if(!sdoc.exists){ await cloud.collection('forums/'+fid+'/sessions').doc(combo.sid).set({name,date,attendance:{}}).catch(()=>{}); }
+    }
+  }catch(e){ toast('Could not load some forums — check your connection.','bad'); }
+  combo.active=true;
+  toast(`Ready — ${combo.roster.size} members pooled from ${fids.length} forum${fids.length===1?'':'s'}.`);
+  renderComboScan();
+}
+function renderComboScan(){
+  const tallies=new Map(); for(const r of combo.log) tallies.set(r.forumId,(tallies.get(r.forumId)||0)+1);
+  const breakdown = [...combo.selected].map(fid=>{ const f=combo.forums.find(x=>x.id===fid); return `${esc(f?f.name||fid:fid)}: ${tallies.get(fid)||0}`; }).join(' · ');
+  $('#comboBody').innerHTML = `
+    <div class="banner">${ic('alert')}<div>Scanning for <b>${esc(combo.name)}</b> · ${esc(fmtDay(combo.date))} — ${breakdown}</div></div>
+    <div class="viewport" id="comboViewport">
+      <video id="comboVideo" playsinline muted></video>
+      <div class="reticle"><i></i><i></i><i></i><i></i></div>
+      <div class="vp-ctl">
+        <button data-act="combo-flip-cam" aria-label="Switch camera" id="comboBtnFlip"></button>
+        <button data-act="combo-stop-cam" aria-label="Turn camera off" id="comboBtnStop"></button>
+      </div>
+      <div class="vp-idle">
+        <div id="comboVpIcon"></div>
+        <p id="comboCamMsg">Point the camera at a member's QR code.</p>
+        <button class="btn primary" data-act="combo-start-cam" id="comboBtnStart">Start camera</button>
+      </div>
+    </div>
+    <div class="verdict is-idle" id="comboVerdict" role="status" aria-live="polite"></div>
+    <div class="card">
+      <h2>Check in by name or ID</h2>
+      <input type="search" id="comboLookupQ" placeholder="Name, unit or ID (CFM26-023)" autocomplete="off" enterkeyhint="done">
+      <div id="comboLookupRes"></div>
+    </div>
+    <div class="card">
+      <h2>Recent check-ins</h2>
+      <div id="comboRecent"></div>
+    </div>
+    <div class="btn-row"><button class="btn danger" data-act="combo-end">${ic('x')}End combined scanning</button></div>`;
+  $('#comboVpIcon').innerHTML = `<span style="color:#9FB4BB">${ic('camera',44)}</span>`;
+  if(comboScan.stream){ const v=$('#comboVideo'); v.srcObject=comboScan.stream; v.play().catch(()=>{}); $('#comboViewport').classList.add('live'); }
+  comboRenderLists();
+  comboShowVerdict('idle');
+}
+function comboRenderLists(){
+  const recent = combo.log.slice().sort((a,b)=>b.t-a.t).slice(0,8);
+  $('#comboRecent').innerHTML = recent.length ? recent.map(r=>`<div class="result"><div class="who"><b>${esc(r.name)}</b><small>${esc(r.forumName)}</small></div><span class="tick">${fmtTime(r.t)}</span></div>`).join('')
+    : `<div class="empty"><strong>No check-ins yet</strong>Scan a QR code or search for a member above.</div>`;
+  comboRenderLookup();
+}
+function comboRenderLookup(){
+  const q=$('#comboLookupQ'); if(!q) return;
+  const val=q.value, box=$('#comboLookupRes'), toks=norm(val).split(' ').filter(Boolean);
+  if(!toks.length){ box.innerHTML=''; return; }
+  const out=[];
+  outer: for(const cands of combo.roster.values()){
+    for(const c of cands){
+      const h = norm(c.name+' '+(c.unit||'')+' '+c.id);
+      if(toks.every(t=>h.includes(t))){ out.push(c); if(out.length>=8) break outer; }
+    }
+  }
+  box.innerHTML = out.length ? `<div style="margin-top:8px">`+out.map(c=>{
+    const already = combo.log.some(r=>r.forumId===c.forumId && r.id===c.id);
+    return `<div class="result"><div class="who"><b>${esc(c.name)}</b><small>${esc(c.forumName)} · ${esc(c.unit||'')}<span>${c.id}</span></small></div>`+
+      (already ? `<span class="tick">${ic('check',16)}checked in</span>` : `<button class="btn small primary" data-act="combo-pick" data-fid="${esc(c.forumId)}" data-id="${esc(c.id)}">Check in</button>`)+`</div>`;
+  }).join('')+`</div>` : `<p class="hint">No member matches “${esc(val)}”.</p>`;
+}
+function comboShowVerdict(kind,d={}){
+  clearTimeout(combo.verdictT);
+  const el=$('#comboVerdict'); if(!el) return;
+  el.className='verdict is-'+(kind==='choose'?'bad':kind);
+  let icon='scan', title='', name='', meta='';
+  if(kind==='idle'){
+    icon='scan'; title='Ready to scan';
+    meta=`<span class="v-hint">${comboScan.stream?'Hold a member’s QR code inside the frame.':'Start the camera or search by name below.'}</span>`;
+  }else if(kind==='ok' || kind==='dup'){
+    const c=d.cand; icon = kind==='ok'?'check':'alert';
+    title = kind==='ok' ? 'Checked in' : 'Already checked in';
+    name = c.name;
+    meta = `<span>${esc(c.forumName)}</span><span>${esc(c.unit||'')}</span><span>${kind==='ok'?'':'at '}${fmtTime(d.t)}</span>`;
+  }else if(kind==='choose'){
+    icon='alert'; title='Same ID in more than one forum — pick the right person';
+    meta = d.cands.map(c=>`<button class="btn small" data-act="combo-pick" data-fid="${esc(c.forumId)}" data-id="${esc(c.id)}">${esc(c.name)} — ${esc(c.forumName)}</button>`).join(' ');
+  }else{
+    icon='x'; title=d.title||'Code not recognised'; meta=d.text?`<span>${esc(d.text)}</span>`:'';
+  }
+  el.innerHTML = `<div class="v-icon">${ic(icon,28)}</div><div class="v-main"><div class="v-title">${esc(title)}</div>${name?`<div class="v-name">${esc(name)}</div>`:''}<div class="v-meta">${meta}</div></div>`;
+  if(kind!=='idle' && kind!=='choose') combo.verdictT = setTimeout(()=>comboShowVerdict('idle'),8000);
+}
+async function comboWriteAttendance(forumId,mid,t){
+  try{ await cloud.collection('forums/'+forumId+'/sessions').doc(combo.sid).update({attendance:{[mid]:{t,src:'scan'}}}); }
+  catch(e){
+    if(e && e.code==='invalid_argument'){
+      try{ await cloud.collection('forums/'+forumId+'/sessions').doc(combo.sid).set({name:combo.name,date:combo.date,attendance:{[mid]:{t,src:'scan'}}}); return; }catch(e2){}
+    }
+    toast('Could not save that check-in — check your connection.','bad');
+  }
+}
+function comboMark(cand){
+  const ex = combo.log.find(r=>r.forumId===cand.forumId && r.id===cand.id);
+  if(ex){ comboShowVerdict('dup',{cand,t:ex.t}); feedback('dup'); return; }
+  const t=Date.now();
+  combo.log.push({forumId:cand.forumId, forumName:cand.forumName, id:cand.id, name:cand.name, t});
+  comboWriteAttendance(cand.forumId, cand.id, t);
+  comboShowVerdict('ok',{cand,t}); feedback('ok');
+  comboRenderLists();
+}
+function comboHandleCode(raw){
+  const id=codeToId(raw);
+  if(!id){ comboShowVerdict('bad',{title:'Code not recognised',text:'This is not a CFM member code.'}); feedback('bad'); return; }
+  const cands = combo.roster.get(id);
+  if(!cands || !cands.length){ comboShowVerdict('bad',{title:'Not in the selected forums',text:id}); feedback('bad'); return; }
+  if(cands.length===1){ comboMark(cands[0]); return; }
+  comboShowVerdict('choose',{cands});
+}
+async function comboStartCamera(){
+  const msg=$('#comboCamMsg');
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ if(msg) msg.textContent='This browser cannot open the camera here. Search by name below.'; return; }
+  try{
+    comboStopCamera();
+    if(msg) msg.textContent='Starting the camera…';
+    const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:comboScan.facing},width:{ideal:1280},height:{ideal:720}},audio:false});
+    comboScan.stream=stream;
+    const v=$('#comboVideo'); v.srcObject=stream; await v.play();
+    $('#comboViewport').classList.add('live');
+    comboScan.detector=null;
+    if('BarcodeDetector' in window){ try{ comboScan.detector = new BarcodeDetector({formats:['qr_code']}); }catch(e){ comboScan.detector=null; } }
+    lib('jsqr');
+    comboScan.raf = requestAnimationFrame(comboTick);
+    comboShowVerdict('idle');
+  }catch(err){
+    comboStopCamera();
+    const n = err && err.name;
+    if(msg) msg.textContent =
+      (n==='NotAllowedError'||n==='SecurityError') ? 'Camera access is blocked. Allow the camera for this page, or search by name below.' :
+      (n==='NotFoundError'||n==='OverconstrainedError') ? 'No camera was found on this device. Search by name below.' :
+      'The camera could not start. Search by name below.';
+  }
+}
+function comboStopCamera(){
+  cancelAnimationFrame(comboScan.raf); comboScan.raf=0;
+  if(comboScan.stream){ comboScan.stream.getTracks().forEach(t=>t.stop()); comboScan.stream=null; }
+  const v=$('#comboVideo'); if(v) v.srcObject=null;
+  const vp=$('#comboViewport'); if(vp) vp.classList.remove('live');
+  const m=$('#comboCamMsg'); if(m) m.textContent='Point the camera at a member’s QR code.';
+}
+async function comboTick(now){
+  if(!comboScan.stream) return;
+  comboScan.raf = requestAnimationFrame(comboTick);
+  if(comboScan.busy || now-comboScan.lastT<110) return;
+  const v=$('#comboVideo'); if(!v || v.readyState<2 || !v.videoWidth) return;
+  comboScan.lastT=now; comboScan.busy=true;
+  try{
+    const code = await decodeFrame(v, comboScan);
+    if(code){
+      const t=Date.now();
+      if(code===comboScan.last.code && t-comboScan.last.t<2500){ comboScan.last.t=t; }
+      else{ comboScan.last={code,t}; comboHandleCode(code); }
+    }
+  }catch(e){}
+  comboScan.busy=false;
+}
+function comboEnd(){
+  comboStopCamera();
+  combo.active=false; combo.roster=new Map(); combo.log=[];
+  renderComboSetup();
 }
 function loginError(msg){ const e=$('#loginErr'); e.hidden=false; e.textContent=msg; $('#loginBusy').textContent=''; }
 let ENTERED_AS = null; // 'super' or 'forum:{id}' — avoids re-initializing (and resetting sync timers) if
