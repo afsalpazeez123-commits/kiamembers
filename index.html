@@ -336,6 +336,10 @@ select:disabled{opacity:.65}
       <div class="field"><label for="scanSess">Checking in to</label><select id="scanSess"></select></div>
       <div class="tally"><b id="tallyN">0</b><span id="tallyOf">of 222 present</span></div>
     </div>
+    <div class="seg" role="group" aria-label="Scan mode" style="margin-bottom:14px">
+      <button data-act="scan-mode" data-v="checkin" id="modeCheckin">Attendance</button>
+      <button data-act="scan-mode" data-v="payment" id="modePayment">Payment</button>
+    </div>
     <div class="viewport" id="viewport">
       <video id="video" playsinline muted></video>
       <div class="reticle"><i></i><i></i><i></i><i></i></div>
@@ -355,13 +359,13 @@ select:disabled{opacity:.65}
       <button class="btn" data-act="sound" id="btnSound"></button>
     </div>
     <div class="card">
-      <h2>Check in by name or ID</h2>
+      <h2 id="lookupTitle">Check in by name or ID</h2>
       <input type="search" id="lookupQ" placeholder="Name, unit or ID (CFM26-023)" autocomplete="off" enterkeyhint="done" aria-label="Search members">
       <p class="hint">Using a handheld scanner? Tap this box first, then scan.</p>
       <div id="lookupRes"></div>
     </div>
     <div class="card">
-      <h2>Recent check-ins</h2>
+      <h2 id="recentTitle">Recent check-ins</h2>
       <div id="recent"></div>
     </div>
   </section>
@@ -487,7 +491,7 @@ const pill = m => `<span class="pill ${TIER_CLS[m.status]}">${esc(m.status)}</sp
 /* ================= state + storage ================= */
 const KEY = 'cfm26.attendance.v1';
 const state = {
-  tab:'scan', sessions:[], log:[], activeId:null, sound:true, persist:true,
+  tab:'scan', sessions:[], log:[], activeId:null, sound:true, persist:true, scanMode:'checkin',
   dash:{scope:'',wing:'All',status:'All',sort:'rate',list:'present',q:'',limit:50},
   mem:{q:'',wing:'All',status:'All',unit:'All'}
 };
@@ -506,12 +510,13 @@ function load(){
     if(Array.isArray(d.sessions) && Array.isArray(d.log)){
       state.sessions = d.sessions; state.log = d.log;
       state.activeId = d.activeId || null; state.sound = d.sound !== false;
+      state.scanMode = d.scanMode==='payment' ? 'payment' : 'checkin';
     }
   }catch(e){}
 }
 function save(){
   try{
-    localStorage.setItem(KEY, JSON.stringify({sessions:state.sessions,log:state.log,activeId:state.activeId,sound:state.sound}));
+    localStorage.setItem(KEY, JSON.stringify({sessions:state.sessions,log:state.log,activeId:state.activeId,sound:state.sound,scanMode:state.scanMode}));
   }catch(e){
     if(state.persist){ state.persist=false; renderBanner(); }
   }
@@ -550,7 +555,12 @@ let FORUM_ID = null, CURRENT_UID = null;
 const forumCol = name => cloud.collection('forums/'+FORUM_ID+'/'+name);
 state.cloudStatus = 'off'; // off | connecting | synced | error
 function sessionAttendanceNow(sid){
-  const a={}; for(const r of state.log) if(r.s===sid) a[r.m]={t:r.t,src:r.src}; return a;
+  const a={};
+  for(const r of state.log) if(r.s===sid){
+    a[r.m]={t:r.t,src:r.src};
+    if(r.paid){ a[r.m].paid=true; a[r.m].paidT=r.paidT; a[r.m].paidSrc=r.paidSrc; }
+  }
+  return a;
 }
 async function connectFirestore(){
   if(cloud) return true;
@@ -601,7 +611,7 @@ function applySessionsSnapshot(snap){
   snap.docs.forEach(d=>{
     const v=d.data()||{}; fresh.set(d.id,{id:d.id,name:v.name,date:v.date});
     const arr=[]; const att=v.attendance||{};
-    for(const mid in att){ const e=att[mid]||{}; arr.push({m:mid,s:d.id,t:e.t,src:e.src}); }
+    for(const mid in att){ const e=att[mid]||{}; const rec={m:mid,s:d.id,t:e.t,src:e.src}; if(e.paid){ rec.paid=true; rec.paidT=e.paidT; rec.paidSrc=e.paidSrc; } arr.push(rec); }
     freshLog.set(d.id, arr);
   });
   reconcilePending(pendingSessionOps, id=>fresh.has(id));
@@ -648,7 +658,7 @@ async function pollActiveSession(){
       else state.sessions.push({id:state.activeId,name:v.name,date:v.date});
       state.log = state.log.filter(r=>r.s!==state.activeId);
       const att=v.attendance||{};
-      for(const mid in att){ const e=att[mid]||{}; state.log.push({m:mid,s:state.activeId,t:e.t,src:e.src}); }
+      for(const mid in att){ const e=att[mid]||{}; const rec={m:mid,s:state.activeId,t:e.t,src:e.src}; if(e.paid){ rec.paid=true; rec.paidT=e.paidT; rec.paidSrc=e.paidSrc; } state.log.push(rec); }
       reindex(); if(state.tab==='scan') refresh();
       state.cloudStatus='synced';
     }
@@ -705,14 +715,37 @@ async function cloudMarkWrite(sid,mid,rec){
 async function flushOutbox(){
   if(!cloud || !outbox.length) return;
   const items=outbox; outbox=[];
-  for(const {sid,mid,rec} of items){
-    try{ await forumCol('sessions').doc(sid).update({attendance:{[mid]:{t:rec.t,src:rec.src}}}); }
-    catch(e){ outbox.push({sid,mid,rec}); }
+  for(const item of items){
+    const {sid,mid,rec,kind} = item;
+    try{
+      if(kind==='paid'){
+        const payload={paid:true,paidT:rec.paidT,paidSrc:rec.paidSrc};
+        if(rec.src==='payment'){ payload.t=rec.t; payload.src=rec.src; }
+        await forumCol('sessions').doc(sid).update({attendance:{[mid]:payload}});
+      }else{
+        await forumCol('sessions').doc(sid).update({attendance:{[mid]:{t:rec.t,src:rec.src}}});
+      }
+    }catch(e){ outbox.push(item); }
   }
 }
 async function cloudUnmarkWrite(sid,mid){
   try{ const s=state.sessions.find(x=>x.id===sid); await forumCol('sessions').doc(sid).set({name:s?s.name:sid,date:s?s.date:todayStr(),attendance:sessionAttendanceNow(sid)}); }
   catch(e){ toast('Could not remove that check-in — check your connection.','bad'); }
+}
+async function cloudMarkPaidWrite(sid,mid,rec){
+  const payload = {paid:true,paidT:rec.paidT,paidSrc:rec.paidSrc};
+  if(rec.src==='payment'){ payload.t=rec.t; payload.src=rec.src; } // first-time implicit check-in from the payment counter
+  try{ await forumCol('sessions').doc(sid).update({attendance:{[mid]:payload}}); }
+  catch(e){
+    if(e && e.code==='invalid_argument'){
+      try{ const s=state.sessions.find(x=>x.id===sid); await forumCol('sessions').doc(sid).set({name:s?s.name:sid,date:s?s.date:todayStr(),attendance:sessionAttendanceNow(sid)}); return; }catch(e2){}
+    }
+    outbox.push({sid,mid,rec,kind:'paid'});
+  }
+}
+async function cloudUnmarkPaidWrite(sid,mid){
+  try{ const s=state.sessions.find(x=>x.id===sid); await forumCol('sessions').doc(sid).set({name:s?s.name:sid,date:s?s.date:todayStr(),attendance:sessionAttendanceNow(sid)}); }
+  catch(e){ toast('Could not remove that payment — check your connection.','bad'); }
 }
 async function cloudCreateSession(id,name,date){
   try{ await forumCol('sessions').doc(id).set({name,date,attendance:{}}); }
@@ -779,6 +812,7 @@ const makeSid = (name,date) => date+'-'+slug(name);
 const sortedSessions = () => [...state.sessions].sort((a,b)=>b.date.localeCompare(a.date)||a.name.localeCompare(b.name));
 const activeSession = () => state.sessions.find(s=>s.id===state.activeId);
 const countIn = sid => { let n=0; for(const r of state.log) if(r.s===sid && byId.has(r.m)) n++; return n; };
+const countPaid = sid => { let n=0; for(const r of state.log) if(r.s===sid && r.paid && byId.has(r.m)) n++; return n; };
 function ensureSession(createIfEmpty=true){
   if(!state.sessions.length){
     if(!createIfEmpty) return; // cloud mode: an empty snapshot is transient — seeding creates the first session
@@ -806,6 +840,36 @@ function unmark(mid,sid){
   logIdx.delete(k);
   state.log = state.log.filter(r=>!(r.s===sid && r.m===mid));
   if(cloud) cloudUnmarkWrite(sid,mid); save();
+}
+function markPaid(mid,sid){
+  sid = sid || state.activeId;
+  const k = lk(sid,mid);
+  let rec = logIdx.get(k);
+  if(rec && rec.paid) return {already:true,rec};
+  const now = Date.now();
+  let wasCheckedIn = true;
+  if(!rec){
+    rec = {m:mid,s:sid,t:now,src:'payment'};
+    state.log.push(rec); logIdx.set(k,rec);
+    wasCheckedIn = false;
+  }
+  rec.paid = true; rec.paidT = now; rec.paidSrc = 'scan';
+  lastActive = now;
+  if(cloud) cloudMarkPaidWrite(sid,mid,rec); save();
+  return {already:false,rec,wasCheckedIn};
+}
+function unmarkPaid(mid,sid){
+  sid = sid || state.activeId;
+  const k = lk(sid,mid), rec = logIdx.get(k);
+  if(!rec || !rec.paid) return;
+  delete rec.paid; delete rec.paidT; delete rec.paidSrc;
+  if(cloud) cloudUnmarkPaidWrite(sid,mid); save();
+}
+function markAllPresent(sid){
+  sid = sid || state.activeId;
+  let n=0;
+  for(const m of MEMBERS){ const r = mark(m.id,'manual',sid); if(!r.dup) n++; }
+  return n;
 }
 function memberFromCode(raw){
   const mm = /CFM26-([0-9A-Z]{3,8})/i.exec(String(raw).trim());
@@ -989,20 +1053,33 @@ function renderQrBanner(){
 const scan = {stream:null,raf:0,detector:null,facing:'environment',busy:false,lastT:0,last:{code:'',t:0},cv:null,g:null};
 let verdictT = 0;
 
+function scanTallyCount(){
+  if(state.scanMode==='payment') return countPaid(state.activeId);
+  return countIn(state.activeId);
+}
+function idleCamMsg(){
+  return state.scanMode==='payment'
+    ? 'Point the camera at a member’s QR code and they are marked paid automatically.'
+    : 'Point the camera at a member’s QR code and they are checked in automatically.';
+}
+function applyScanModeUI(){
+  const pay = state.scanMode==='payment';
+  const mc=$('#modeCheckin'), mp=$('#modePayment');
+  if(mc) mc.setAttribute('aria-pressed', String(!pay));
+  if(mp) mp.setAttribute('aria-pressed', String(pay));
+  const lbl=document.querySelector('label[for="scanSess"]'); if(lbl) lbl.textContent = pay ? 'Collecting payment for' : 'Checking in to';
+  const lt=$('#lookupTitle'); if(lt) lt.textContent = pay ? 'Mark paid by name or ID' : 'Check in by name or ID';
+  const rt=$('#recentTitle'); if(rt) rt.textContent = pay ? 'Recent payments' : 'Recent check-ins';
+  const to=$('#tallyOf'); if(to) to.textContent = pay ? `of ${MEMBERS.length} paid` : `of ${MEMBERS.length} present`;
+  if(!scan.stream){ const cm=$('#camMsg'); if(cm) cm.textContent = idleCamMsg(); }
+}
 function renderScan(){
   const sel=$('#scanSess');
   sel.innerHTML = sortedSessions().map(s=>`<option value="${esc(s.id)}" ${s.id===state.activeId?'selected':''}>${esc(s.name)} · ${esc(fmtDay(s.date))}</option>`).join('');
-  const n = countIn(state.activeId);
-  $('#tallyN').textContent = n; $('#tallyOf').textContent = `of ${MEMBERS.length} present`;
+  applyScanModeUI();
+  $('#tallyN').textContent = scanTallyCount();
   $('#btnSound').innerHTML = state.sound ? ic('vol')+'Sound on' : ic('mute')+'Sound off';
-  const recent = state.log.filter(r=>r.s===state.activeId).sort((a,b)=>b.t-a.t).slice(0,8);
-  $('#recent').innerHTML = recent.length ? recent.map(r=>{
-    const m=byId.get(r.m); if(!m) return '';
-    return `<div class="result"><div class="who"><b>${esc(m.name)}</b><small>${esc(m.unit)} ${pill(m)}</small></div>
-      <span class="tick">${fmtTime(r.t)}</span>
-      <button class="iconbtn" data-act="unmark" data-id="${m.id}" aria-label="Remove check-in for ${esc(m.name)}">${ic('undo')}</button></div>`;
-  }).join('') : `<div class="empty"><strong>No check-ins yet</strong>Scan a QR code or search for a member above.</div>`;
-  renderLookup();
+  renderScanLists();
   if(!$('#verdict').dataset.kind) showVerdict('idle');
 }
 function showVerdict(kind,d={}){
@@ -1015,10 +1092,14 @@ function showVerdict(kind,d={}){
     meta=`<span class="v-hint">${scan.stream ? 'Hold a member’s QR code inside the frame.' : 'Start the camera, take a photo, or search by name below.'}</span>`;
   }else if(kind==='ok' || kind==='dup'){
     const m=d.m; icon = kind==='ok' ? 'check' : 'alert';
-    title = kind==='ok' ? 'Checked in' : 'Already checked in';
+    title = d.paid
+      ? (kind==='ok' ? (d.wasCheckedIn ? 'Marked as paid' : 'Checked in and marked as paid') : 'Already paid')
+      : (kind==='ok' ? 'Checked in' : 'Already checked in');
     name = m.name;
     meta = `${pill(m)}<span>${esc(m.unit)}</span><span>${kind==='ok'?'':'at '}${fmtTime(d.t)}</span>`;
-    if(kind==='ok') extra = `<button class="v-undo" data-act="unmark" data-id="${m.id}">${ic('undo',16)}Undo</button>`;
+    if(kind==='ok') extra = d.paid
+      ? `<button class="v-undo" data-act="unmark-paid" data-id="${m.id}">${ic('undo',16)}Undo</button>`
+      : `<button class="v-undo" data-act="unmark" data-id="${m.id}">${ic('undo',16)}Undo</button>`;
   }else{
     icon='x'; title=d.title||'Code not recognised'; name=d.name||''; meta=`<span>${esc(d.text||'')}</span>`;
   }
@@ -1032,23 +1113,35 @@ function handleCode(raw,src){
   if(!m){
     showVerdict('bad',{title:'Code not recognised',text:'This is not a CFM member code.'}); feedback('bad'); return;
   }
+  if(state.scanMode==='payment'){
+    const r = markPaid(m.id,s.id);
+    showVerdict(r.already?'dup':'ok',{m,t:r.rec.paidT,paid:true,wasCheckedIn:r.wasCheckedIn});
+    feedback(r.already?'dup':'ok');
+    if(!r.already) renderScan2();
+    return;
+  }
   const r = mark(m.id,src);
   showVerdict(r.dup?'dup':'ok',{m,t:r.rec.t});
   feedback(r.dup?'dup':'ok');
   if(!r.dup) renderScan2();
 }
 function renderScan2(){ // refresh what changes after a check-in, leaving camera and verdict untouched
-  $('#tallyN').textContent = countIn(state.activeId);
+  $('#tallyN').textContent = scanTallyCount();
   renderScanLists();
 }
 function renderScanLists(){
-  const recent = state.log.filter(r=>r.s===state.activeId).sort((a,b)=>b.t-a.t).slice(0,8);
+  const pay = state.scanMode==='payment';
+  const rows = pay
+    ? state.log.filter(r=>r.s===state.activeId && r.paid).sort((a,b)=>b.paidT-a.paidT)
+    : state.log.filter(r=>r.s===state.activeId).sort((a,b)=>b.t-a.t);
+  const recent = rows.slice(0,8);
   $('#recent').innerHTML = recent.length ? recent.map(r=>{
     const m=byId.get(r.m); if(!m) return '';
-    return `<div class="result"><div class="who"><b>${esc(m.name)}</b><small>${esc(m.unit)} ${pill(m)}</small></div>
-      <span class="tick">${fmtTime(r.t)}</span>
-      <button class="iconbtn" data-act="unmark" data-id="${m.id}" aria-label="Remove check-in for ${esc(m.name)}">${ic('undo')}</button></div>`;
-  }).join('') : `<div class="empty"><strong>No check-ins yet</strong>Scan a QR code or search for a member above.</div>`;
+    const when = pay ? r.paidT : r.t;
+    return `<div class="result"><div class="who"><b>${esc(m.name)}</b><small>${esc(m.unit)} ${pill(m)}${!pay && r.paid?' · Paid':''}</small></div>
+      <span class="tick">${fmtTime(when)}</span>
+      <button class="iconbtn" data-act="${pay?'unmark-paid':'unmark'}" data-id="${m.id}" aria-label="Remove ${pay?'payment':'check-in'} for ${esc(m.name)}">${ic('undo')}</button></div>`;
+  }).join('') : `<div class="empty"><strong>No ${pay?'payments':'check-ins'} yet</strong>Scan a QR code or search for a member above.</div>`;
   renderLookup();
 }
 function searchMembers(q,limit){
@@ -1061,8 +1154,14 @@ function renderLookup(){
   const q=$('#lookupQ').value, box=$('#lookupRes');
   if(!norm(q)){ box.innerHTML=''; return; }
   const res=searchMembers(q,6);
+  const pay = state.scanMode==='payment';
   box.innerHTML = res.length ? `<div style="margin-top:8px">`+res.map(m=>{
     const rec=logIdx.get(lk(state.activeId,m.id));
+    if(pay){
+      return `<div class="result"><div class="who"><b>${esc(m.name)}</b><small>${esc(m.unit)} ${pill(m)}<span>${m.id}</span></small></div>`+
+        (rec && rec.paid ? `<span class="tick">${ic('check',16)}${fmtTime(rec.paidT)}</span>` :
+               `<button class="btn small primary" data-act="mark-paid" data-id="${m.id}">Mark paid</button>`)+`</div>`;
+    }
     return `<div class="result"><div class="who"><b>${esc(m.name)}</b><small>${esc(m.unit)} ${pill(m)}<span>${m.id}</span></small></div>`+
       (rec ? `<span class="tick">${ic('check',16)}${fmtTime(rec.t)}</span>` :
              `<button class="btn small primary" data-act="mark" data-id="${m.id}" data-src="manual">Check in</button>`)+`</div>`;
@@ -1103,7 +1202,7 @@ function stopCamera(){
   if(scan.stream){ scan.stream.getTracks().forEach(t=>t.stop()); scan.stream=null; }
   const v=$('#video'); if(v){ v.srcObject=null; }
   const vp=$('#viewport'); if(vp) vp.classList.remove('live');
-  const m=$('#camMsg'); if(m) m.textContent='Point the camera at a member’s QR code and they are checked in automatically.';
+  const m=$('#camMsg'); if(m) m.textContent=idleCamMsg();
 }
 async function tick(now){
   if(!scan.stream) return;
@@ -1197,6 +1296,10 @@ function openMember(id){
       ${s ? (rec ? `<button class="btn" data-act="modal-unmark" data-id="${m.id}">${ic('undo')}Remove check-in</button>`
                  : `<button class="btn primary" data-act="modal-mark" data-id="${m.id}">${ic('check')}Check in</button>`) : ''}
     </div>
+    ${s ? `<div class="sheet-actions">
+      ${rec && rec.paid ? `<button class="btn" data-act="modal-unmark-paid" data-id="${m.id}">${ic('undo')}Remove paid status (paid ${fmtTime(rec.paidT)})</button>`
+                         : `<button class="btn primary" data-act="modal-mark-paid" data-id="${m.id}">${ic('check')}Mark as paid</button>`}
+    </div>` : ''}
     <div class="sheet-actions">
       <button class="btn" data-act="edit-member" data-id="${m.id}">${ic('edit')}Edit details</button>
       <button class="btn danger" data-act="delete-member" data-id="${m.id}">${ic('trash')}Delete member</button>
@@ -1623,10 +1726,11 @@ function renderDashList(D){
 }
 function downloadReport(){
   const ss=[...state.sessions].sort((a,b)=>a.date.localeCompare(b.date)||a.name.localeCompare(b.name));
-  const rows=[['Member ID','Name','Membership status','Unit','Wing',...ss.map(s=>`${s.name} (${s.date}) check-in time`),'Sessions attended','Attendance %']];
+  const rows=[['Member ID','Name','Membership status','Unit','Wing',...ss.map(s=>`${s.name} (${s.date}) check-in time`),...ss.map(s=>`${s.name} (${s.date}) paid`),'Sessions attended','Attendance %']];
   for(const m of MEMBERS){
     let n=0; const cells=ss.map(s=>{ const r=logIdx.get(lk(s.id,m.id)); if(r){ n++; return hm(r.t); } return ''; });
-    rows.push([m.id,m.name,m.status,m.unit,m.wing,...cells,n,ss.length?Math.round(n/ss.length*100):0]);
+    const paidCells=ss.map(s=>{ const r=logIdx.get(lk(s.id,m.id)); return (r && r.paid) ? 'Yes' : ''; });
+    rows.push([m.id,m.name,m.status,m.unit,m.wing,...cells,...paidCells,n,ss.length?Math.round(n/ss.length*100):0]);
   }
   saveFile(`CFM-attendance-report-${todayStr()}.csv`,toCsv(rows));
 }
@@ -1646,8 +1750,9 @@ function renderSessions(){
       <button class="btn primary" data-act="create-session">${ic('plus')}Create session</button>
     </div></div>
   <div class="card"><h2>All sessions</h2>
-    ${ss.map(s=>`<div class="s-row"><div class="who"><b>${esc(s.name)}</b><small><span>${esc(fmtDate(s.date))}</span><span>${countIn(s.id)} of ${MEMBERS.length} present</span>${s.id===state.activeId?'<span class="tick">Checking in now</span>':''}</small></div>
+    ${ss.map(s=>`<div class="s-row"><div class="who"><b>${esc(s.name)}</b><small><span>${esc(fmtDate(s.date))}</span><span>${countIn(s.id)} of ${MEMBERS.length} present</span><span>${countPaid(s.id)} paid</span>${s.id===state.activeId?'<span class="tick">Checking in now</span>':''}</small></div>
       <div class="s-actions">${s.id===state.activeId?'':`<button class="btn small" data-act="use-session" data-sid="${esc(s.id)}">Use</button>`}
+      <button class="btn small" data-act="mark-all-present" data-sid="${esc(s.id)}">Mark all present</button>
       <button class="iconbtn" data-act="edit-session" data-sid="${esc(s.id)}" aria-label="Edit ${esc(s.name)}">${ic('edit')}</button>
       <button class="iconbtn" data-act="delete-session" data-sid="${esc(s.id)}" aria-label="Delete ${esc(s.name)}">${ic('trash')}</button></div></div>`).join('')}
   </div>
@@ -1785,6 +1890,10 @@ document.addEventListener('click', async e=>{
     case 'stop-cam': stopCamera(); showVerdict('idle'); break;
     case 'flip-cam': scan.facing = scan.facing==='environment'?'user':'environment'; startCamera(); break;
     case 'sound': state.sound=!state.sound; save(); $('#btnSound').innerHTML = state.sound ? ic('vol')+'Sound on' : ic('mute')+'Sound off'; if(state.sound) tone(880,.1); break;
+    case 'scan-mode': {
+      const v = el.dataset.v==='payment' ? 'payment' : 'checkin';
+      if(state.scanMode!==v){ state.scanMode=v; save(); showVerdict('idle'); renderScan(); }
+      break; }
     case 'mark': {
       const m=byId.get(id), r=mark(id,el.dataset.src||'manual',sid);
       if(state.tab==='scan'){ showVerdict(r.dup?'dup':'ok',{m,t:r.rec.t}); feedback(r.dup?'dup':'ok'); renderScan2(); }
@@ -1792,6 +1901,15 @@ document.addEventListener('click', async e=>{
       break; }
     case 'unmark': {
       unmark(id,sid); toast('Check-in removed.');
+      if(state.tab==='scan'){ showVerdict('idle'); renderScan2(); } else refresh();
+      break; }
+    case 'mark-paid': {
+      const m=byId.get(id), r=markPaid(id,sid);
+      if(state.tab==='scan'){ showVerdict(r.already?'dup':'ok',{m,t:r.rec.paidT,paid:true,wasCheckedIn:r.wasCheckedIn}); feedback(r.already?'dup':'ok'); renderScan2(); }
+      else{ toast(`${m.name} marked as paid.`); refresh(); }
+      break; }
+    case 'unmark-paid': {
+      unmarkPaid(id,sid); toast('Payment removed.');
       if(state.tab==='scan'){ showVerdict('idle'); renderScan2(); } else refresh();
       break; }
     case 'mark-remove': {
@@ -1810,6 +1928,8 @@ document.addEventListener('click', async e=>{
     case 'import-xlsx': $('#importXlsx').click(); break;
     case 'modal-mark': { const m=byId.get(id); mark(id,'manual'); toast(`${m.name} checked in.`); closeModal(); refresh(); break; }
     case 'modal-unmark': { unmark(id); toast('Check-in removed.'); closeModal(); refresh(); break; }
+    case 'modal-mark-paid': { const m=byId.get(id); markPaid(id); toast(`${m.name} marked as paid.`); closeModal(); refresh(); break; }
+    case 'modal-unmark-paid': { unmarkPaid(id); toast('Payment status removed.'); closeModal(); refresh(); break; }
     case 'save-png': {
       if(typeof qrcode==='undefined'){ toast('The QR library could not load.','bad'); break; }
       const m=byId.get(id); saveFile(fileBase(m)+'.png', await canvasBlob(cardCanvas(m))); break; }
@@ -1830,6 +1950,13 @@ document.addEventListener('click', async e=>{
       s.name=n; s.date=dt;
       if(cloud){ pendingSessionOps.set(sid,{op:'upsert',ts:Date.now()}); cloudUpdateSession(sid,n,dt); } save();
       closeModal(); refresh(); break; }
+    case 'mark-all-present': {
+      const s=state.sessions.find(x=>x.id===sid), left=MEMBERS.length-countIn(sid);
+      if(left<=0){ toast('Everyone is already marked present.'); break; }
+      if(await confirmDialog({title:`Mark all present for “${s.name}”?`,body:`This checks in the remaining ${left} member${left===1?'':'s'} who ${left===1?'is':'are'} not yet recorded, using the current time.`,ok:'Mark all present'})){
+        const n=markAllPresent(sid); toast(`${n} member${n===1?'':'s'} checked in.`); refresh();
+      }
+      break; }
     case 'delete-session': {
       const s=state.sessions.find(x=>x.id===sid), n=countIn(sid);
       if(await confirmDialog({title:`Delete “${s.name}”?`,body:n?`This also removes its ${n} check-in${n===1?'':'s'}. This cannot be undone.`:'This session has no check-ins.',ok:'Delete session',danger:true})){
