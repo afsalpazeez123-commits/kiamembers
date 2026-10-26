@@ -2184,7 +2184,7 @@ function renderSupDetails(){
     ${supDetail.sessions.length ? `<select id="supFSession" style="margin-bottom:12px">${sessOpts}</select>
       ${unitSection}
       <div class="tabs-inline" style="margin-top:10px"><b style="font-size:14px">Present (${present.length})</b></div>
-      ${present.map(m=>`<div class="result"><div class="who"><b>${esc(m.name)}</b><small>${esc(m.unit)} ${pill(m)}</small></div><span class="tick">${fmtTime(sess.attendance[m.id].t)}</span></div>`).join('')||`<div class="empty">Nobody yet.</div>`}
+      ${present.map(m=>`<div class="result"><div class="who"><b>${esc(m.name)}</b><small>${esc(m.unit)} ${pill(m)}${sess.attendance[m.id].paid?' · Paid':''}</small></div><span class="tick">${fmtTime(sess.attendance[m.id].t)}</span></div>`).join('')||`<div class="empty">Nobody yet.</div>`}
       <div class="tabs-inline" style="margin-top:14px"><b style="font-size:14px">Absent (${absent.length})</b></div>
       ${absent.map(m=>`<div class="result"><div class="who"><b>${esc(m.name)}</b><small>${esc(m.unit)} ${pill(m)}</small></div></div>`).join('')||`<div class="empty">Everyone attended.</div>`}
       <div class="btn-row" style="margin-top:16px"><button class="btn" data-act="sup-export-excel">${ic('download',16)}Export member list (.xlsx)</button>
@@ -2210,10 +2210,10 @@ function attendancePdfHtml(title, sess, list, getRec){
     const ms=byUnitGrouped[u].slice().sort((a,b)=>a.name.localeCompare(b.name));
     const rows = ms.map(m=>{
       const rec = getRec(m.id); if(rec) totalP++;
-      return `<tr><td>${esc(m.name)}</td><td>${esc(m.status)}</td><td>${rec?'Present':'Absent'}</td><td>${rec?fmtTime(rec.t):'—'}</td></tr>`;
+      return `<tr><td>${esc(m.name)}</td><td>${esc(m.status)}</td><td>${rec?'Present':'Absent'}</td><td>${rec?fmtTime(rec.t):'—'}</td><td>${rec&&rec.paid?'Paid':'—'}</td></tr>`;
     }).join('');
     const p = ms.filter(m=>getRec(m.id)).length;
-    return `<h3>${esc(u)} <span class="muted">(${p} of ${ms.length} present)</span></h3><table><thead><tr><th>Name</th><th>Membership</th><th>Status</th><th>Arrival</th></tr></thead><tbody>${rows}</tbody></table>`;
+    return `<h3>${esc(u)} <span class="muted">(${p} of ${ms.length} present)</span></h3><table><thead><tr><th>Name</th><th>Membership</th><th>Status</th><th>Arrival</th><th>Paid</th></tr></thead><tbody>${rows}</tbody></table>`;
   }).join('');
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(sess.name)} attendance</title><style>
     body{font-family:Arial,Helvetica,sans-serif;color:#10222B;margin:24px}
@@ -2232,7 +2232,7 @@ async function buildAttendancePdfBlob(title, sess, list, getRec){
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({unit:'pt', format:'a4'});
     const pageW=595.28, margin=40, maxY=800;
-    const colX=[margin, margin+220, margin+350, margin+440];
+    const colX=[margin, margin+180, margin+290, margin+360, margin+435];
     let y=54;
     const byUnitGrouped = {}; for(const m of list){ (byUnitGrouped[m.unit]=byUnitGrouped[m.unit]||[]).push(m); }
     const units = Object.keys(byUnitGrouped).sort();
@@ -2244,7 +2244,7 @@ async function buildAttendancePdfBlob(title, sess, list, getRec){
     function tableHeader(){
       doc.setFillColor(14,90,95); doc.rect(margin, y-11, pageW-margin*2, 18, 'F');
       doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(255,255,255);
-      doc.text('Name', colX[0]+4, y); doc.text('Membership', colX[1]+4, y); doc.text('Status', colX[2]+4, y); doc.text('Arrival', colX[3]+4, y);
+      doc.text('Name', colX[0]+4, y); doc.text('Membership', colX[1]+4, y); doc.text('Status', colX[2]+4, y); doc.text('Arrival', colX[3]+4, y); doc.text('Paid', colX[4]+4, y);
       y += 17;
     }
     units.forEach(u=>{
@@ -2265,6 +2265,9 @@ async function buildAttendancePdfBlob(title, sess, list, getRec){
         doc.text(rec?'Present':'Absent', colX[2]+4, y);
         doc.setTextColor(30,38,43);
         doc.text(rec?fmtTime(rec.t):'\u2014', colX[3]+4, y);
+        doc.setTextColor(...(rec&&rec.paid?[23,134,74]:[150,160,165]));
+        doc.text(rec&&rec.paid?'Paid':'\u2014', colX[4]+4, y);
+        doc.setTextColor(30,38,43);
         y += 15;
       });
       y += 16;
