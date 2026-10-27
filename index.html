@@ -2092,6 +2092,13 @@ async function enterForum(forumId, fromSuper){
   state.persist = testStorage();
   loadRoster(); load(); ensureSession(); reindex(); save();
   state.dash.scope = state.activeId;
+  // Switching forums (especially via the super admin's "Open forum") must not carry over a
+  // search term or filter left set from a previously-viewed forum, or an unrelated unit/status
+  // picked there can silently zero out this forum's member list.
+  state.mem = {q:'',wing:'All',status:'All',unit:'All'};
+  const mq=$('#mq'); if(mq) mq.value='';
+  const dq=$('#dq'); if(dq) dq.value='';
+  state.dash.q='';
   $('#vpIcon').innerHTML = `<span style="color:#9FB4BB">${ic('camera',44)}</span>`;
   $('#btnFlip').innerHTML = ic('flip',20); $('#btnStop').innerHTML = ic('x',20);
   $('#photoIcon').innerHTML = ic('image');
