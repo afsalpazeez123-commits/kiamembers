@@ -17,7 +17,7 @@ window.__authResolve=null;window.__authReady=new Promise(res=>{window.__authReso
   --paper:#EEF3F3; --surface:#FFFFFF; --line:#D5DFE1; --line-2:#E5ECED;
   --brand:#0E5A5F; --brand-ink:#FFFFFF; --brand-soft:#DCEDEC; --brand-mid:#8DBFBD;
   --ok:#17864A; --ok-text:#17864A; --dup:#2D5AAE; --bad:#B5372A;
-  --rukun:#6B3FA0; --karkoon:#127D9C; --assoc:#A87A0E;
+  --rukun:#6B3FA0; --karkoon:#127D9C; --assoc:#A87A0E; --youth:#1E8E5A;
   --shadow:0 10px 40px rgba(16,34,43,.22);
 }
 @media (prefers-color-scheme:dark){
@@ -25,7 +25,7 @@ window.__authResolve=null;window.__authReady=new Promise(res=>{window.__authReso
     --ink:#E6EFF1; --ink-2:#B5C6CC; --muted:#8CA0A8;
     --paper:#0B1417; --surface:#131F24; --line:#26363C; --line-2:#1C2A30;
     --brand:#57BDB6; --brand-ink:#04211F; --brand-soft:#133337; --brand-mid:#2C6E70;
-    --rukun:#B992E8; --karkoon:#52B8DA; --assoc:#E2B04A; --ok-text:#4CCB86;
+    --rukun:#B992E8; --karkoon:#52B8DA; --assoc:#E2B04A; --youth:#5FD29A; --ok-text:#4CCB86;
     --shadow:0 10px 40px rgba(0,0,0,.6);
   }
 }
@@ -33,7 +33,7 @@ window.__authResolve=null;window.__authReady=new Promise(res=>{window.__authReso
   --ink:#E6EFF1; --ink-2:#B5C6CC; --muted:#8CA0A8;
   --paper:#0B1417; --surface:#131F24; --line:#26363C; --line-2:#1C2A30;
   --brand:#57BDB6; --brand-ink:#04211F; --brand-soft:#133337; --brand-mid:#2C6E70;
-  --rukun:#B992E8; --karkoon:#52B8DA; --assoc:#E2B04A; --ok-text:#4CCB86;
+  --rukun:#B992E8; --karkoon:#52B8DA; --assoc:#E2B04A; --youth:#5FD29A; --ok-text:#4CCB86;
   --shadow:0 10px 40px rgba(0,0,0,.6);
 }
 html{scroll-padding-top:env(safe-area-inset-top,0px);-webkit-text-size-adjust:100%}
@@ -93,7 +93,7 @@ select:disabled{opacity:.65}
 .pill{--c:var(--muted);display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:3px 9px;border-radius:999px;
   color:var(--c);background:color-mix(in srgb,var(--c) 13%,transparent);white-space:nowrap}
 .pill::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--c)}
-.t-rukun{--c:var(--rukun)} .t-karkoon{--c:var(--karkoon)} .t-assoc{--c:var(--assoc)}
+.t-rukun{--c:var(--rukun)} .t-karkoon{--c:var(--karkoon)} .t-assoc{--c:var(--assoc)} .t-youth{--c:var(--youth)}
 .banner{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:12px;font-size:14px;margin-bottom:14px;
   background:color-mix(in srgb,var(--assoc) 14%,var(--surface));border:1px solid color-mix(in srgb,var(--assoc) 45%,var(--line))}
 .empty{padding:22px 8px;text-align:center;color:var(--muted)}
@@ -307,7 +307,7 @@ select:disabled{opacity:.65}
       <div class="dash-controls">
         <div class="field"><label for="supFForum">Forum</label><select id="supFForum"><option value="">Choose a forum…</option></select></div>
         <div class="field"><label for="supFWing">Wing</label><select id="supFWing"><option value="All">All</option><option>Men</option><option>Women</option></select></div>
-        <div class="field"><label for="supFStatus">Membership</label><select id="supFStatus"><option value="All">All</option><option>Rukun</option><option>Karkoon</option><option>Active Associate</option></select></div>
+        <div class="field"><label for="supFStatus">Membership</label><select id="supFStatus"><option value="All">All</option><option>Rukun</option><option>Karkoon</option><option>Active Associate</option><option>Youth - AIM</option></select></div>
         <div class="field"><label for="supFUnit">Unit</label><select id="supFUnit"><option value="All">All</option></select></div>
       </div>
       <div id="supDetailsBody"><div class="empty"><strong>Choose a forum above</strong>See its breakdown, session attendance, and export options.</div></div>
@@ -430,10 +430,10 @@ let UNITS = [];
 let byId = new Map();
 let nextNum = BASE_MEMBERS.length + 1;      // member numbers are never reused
 let deletedIds = [];
-const TIERS = ['Rukun','Karkoon','Active Associate'];
-const TIER_CLS = {'Rukun':'t-rukun','Karkoon':'t-karkoon','Active Associate':'t-assoc'};
-const TIER_VAR = {'Rukun':'var(--rukun)','Karkoon':'var(--karkoon)','Active Associate':'var(--assoc)'};
-const TIER_HEX = {'Rukun':'#6B3FA0','Karkoon':'#127D9C','Active Associate':'#A87A0E'};
+const TIERS = ['Rukun','Karkoon','Active Associate','Youth - AIM'];
+const TIER_CLS = {'Rukun':'t-rukun','Karkoon':'t-karkoon','Active Associate':'t-assoc','Youth - AIM':'t-youth'};
+const TIER_VAR = {'Rukun':'var(--rukun)','Karkoon':'var(--karkoon)','Active Associate':'var(--assoc)','Youth - AIM':'var(--youth)'};
+const TIER_HEX = {'Rukun':'#6B3FA0','Karkoon':'#127D9C','Active Associate':'#A87A0E','Youth - AIM':'#1E8E5A'};
 const WINGS = ['Men','Women'];
 const norm = s => String(s).toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g,' ').trim();
 const idNum = id => parseInt(String(id).split('-')[1],10);
@@ -1451,6 +1451,7 @@ function parseTier(raw){
   if(t.startsWith('ruk')) return 'Rukun';
   if(t.startsWith('kar')) return 'Karkoon';
   if(t.startsWith('act')) return 'Active Associate';
+  if(t.startsWith('you')||t.includes('aim')) return 'Youth - AIM';
   return null;
 }
 function importCleanName(raw){ // mirrors the cleanup used to build the original roster (per-token, not "leave mixed-case alone")
