@@ -1910,6 +1910,8 @@ document.addEventListener('click', async e=>{
     case 'combo-end': comboEnd(); break;
     case 'combrep-generate': combRepGenerate(); break;
     case 'combrep-pdf': combRepExportPdf(); break;
+    case 'combrep-refresh-existing': combRepLoadExisting(); break;
+    case 'combrep-use-live': combRepUseLive(); break;
     case 'sup-export-excel': supExportExcel(); break;
     case 'sup-export-pdf': supExportPdf(); break;
     case 'view-roster': {
@@ -2043,6 +2045,7 @@ document.addEventListener('change', e=>{
   if(t.id==='scanSess'){ state.activeId=t.value; state.dash.scope=t.value; save(); if(cloud) pollActiveSession(); renderHead(); renderScan(); showVerdict('idle'); }
   else if(t.classList && t.classList.contains('comboForumChk')){ if(t.checked) combo.selected.add(t.value); else combo.selected.delete(t.value); }
   else if(t.id==='comboExisting'){ const opt=t.selectedOptions[0]; if(opt && opt.value){ $('#comboName').value=opt.dataset.name||''; $('#comboDate').value=opt.dataset.date||''; } }
+  else if(t.id==='combRepExisting'){ const opt=t.selectedOptions[0]; if(opt && opt.value){ $('#combRepName').value=opt.dataset.name||''; $('#combRepDate').value=opt.dataset.date||''; } }
   else if(t.classList && t.classList.contains('combRepForumChk')){ if(t.checked) combRep.selected.add(t.value); else combRep.selected.delete(t.value); }
   else if(t.id==='combRepFilter'){ combRep.filter=t.value; renderCombRepReport(); }
   else if(t.id==='supFForum'){ const opt=t.selectedOptions[0]; if(t.value) loadSupDetail(t.value, opt?opt.textContent:t.value); else{ supDetail={forumId:'',name:'',wing:'All',status:'All',unit:'All',sessionId:'',members:[],sessions:[]}; $('#supDetailsBody').innerHTML=`<div class="empty"><strong>Choose a forum above</strong>See its breakdown, session attendance, and export options.</div>`; } }
@@ -2722,9 +2725,14 @@ async function renderCombRepSetup(){
   try{ combRep.forums = await forumsListForSuper(); }
   catch(e){ box.innerHTML = `<div class="empty"><strong>Could not load forums</strong>${esc(explainLoadError(e))}</div>`; return; }
   box.innerHTML = `
+    ${combo.active?`<div class="banner">${ic('alert')}<div>Combined scanning is running for <b>${esc(combo.name)}</b> · ${esc(fmtDay(combo.date))}. <button class="btn small" data-act="combrep-use-live" type="button" style="margin-top:6px">Use this event</button></div></div>`:''}
     <div class="field" style="margin-bottom:10px"><label>Forums to include</label>
       <div class="stack" style="gap:6px">${combRep.forums.map(f=>`<label style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:500">
         <input type="checkbox" class="combRepForumChk" value="${esc(f.id)}" ${combRep.selected.has(f.id)?'checked':''}> ${esc(f.name||f.id)}</label>`).join('')||'<span class="hint">No forums yet — create one above first.</span>'}</div>
+    </div>
+    <div class="field" style="margin-bottom:10px"><label for="combRepExisting">Or pick an event you've already scanned</label>
+      <div style="display:flex;gap:8px"><select id="combRepExisting" style="flex:1"><option value="">Check forums above, then load the list</option></select>
+      <button class="btn small" data-act="combrep-refresh-existing" type="button">${ic('undo')}Refresh</button></div>
     </div>
     <div class="form-grid">
       <div class="field"><label for="combRepName">Event name</label><input type="text" id="combRepName" placeholder="e.g. Annual Gathering" value="${esc(combRep.name)}"></div>
@@ -2733,6 +2741,30 @@ async function renderCombRepSetup(){
     </div>
     <div id="combRepReport"></div>`;
   if(combRep.data) renderCombRepReport();
+}
+async function combRepLoadExisting(){
+  const sel=$('#combRepExisting'); if(!sel) return;
+  const fids=[...combRep.selected];
+  if(!fids.length){ sel.innerHTML=`<option value="">Check forums above first</option>`; return; }
+  sel.innerHTML=`<option value="">Loading…</option>`;
+  const seen=new Map();
+  try{
+    for(const fid of fids){
+      const snap = await cloud.collection('forums/'+fid+'/sessions').get();
+      snap.docs.forEach(d=>{ const v=d.data()||{}; if(!seen.has(d.id)) seen.set(d.id,{name:v.name||d.id,date:v.date||''}); });
+    }
+  }catch(e){ sel.innerHTML=`<option value="">Could not load — try Refresh again</option>`; return; }
+  const list=[...seen.entries()].sort((a,b)=>(b[1].date||'').localeCompare(a[1].date||''));
+  sel.innerHTML = `<option value="">— pick an event —</option>`+list.map(([sid,v])=>`<option value="${esc(sid)}" data-name="${esc(v.name)}" data-date="${esc(v.date)}">${esc(v.name)} · ${esc(fmtDay(v.date))}</option>`).join('');
+}
+function combRepUseLive(){
+  if(!combo.active) return;
+  combRep.selected = new Set(combo.selected);
+  renderCombRepSetup().then(()=>{
+    const n=$('#combRepName'), d=$('#combRepDate');
+    if(n) n.value=combo.name; if(d) d.value=combo.date;
+    combRepGenerate();
+  });
 }
 async function combRepGenerate(){
   const name=$('#combRepName').value.trim().replace(/\s+/g,' '), date=$('#combRepDate').value;
