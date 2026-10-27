@@ -228,11 +228,12 @@ select:disabled{opacity:.65}
 .authscreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}
 .authcard{width:100%;max-width:380px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:26px 22px;box-shadow:var(--shadow)}
 .login-err{margin-top:12px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--bad) 14%,var(--surface));border:1px solid color-mix(in srgb,var(--bad) 45%,var(--line));color:var(--bad);font-size:14px}
-.forum-row{display:flex;align-items:center;gap:8px 12px;padding:12px 0;border-top:1px solid var(--line-2);flex-wrap:wrap}
+.forum-row{display:flex;flex-direction:column;align-items:stretch;gap:10px;padding:14px 0;border-top:1px solid var(--line-2)}
 .forum-row:first-child{border-top:0}
-.forum-row .who{flex:1 1 180px;min-width:0}
-.forum-row .s-actions{flex:1 1 100%;flex-wrap:wrap;gap:6px 8px}
-.forum-row .s-actions .btn.small{flex:none}
+.forum-row .who{min-width:0}
+.forum-row .s-actions{flex-wrap:wrap;gap:8px}
+.forum-row .s-actions .btn.small{flex:1 1 auto;min-width:100px}
+.forum-row .s-actions .iconbtn{flex:none}
 .donut-wrap{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
 .legend{flex:1;min-width:140px}
 .legend-row{display:flex;align-items:center;gap:8px;font-size:14px;padding:4px 0}
@@ -2179,8 +2180,11 @@ async function renderSuperConsole(){
       <button class="iconbtn" data-act="empty-forum-members" data-fid="${esc(f.id)}" data-fname="${esc(f.name||f.id)}" aria-label="Empty member list for ${esc(f.name||f.id)}" title="Empty member list">${ic('trash')}</button></div></div>`).join('')
     || `<div class="empty"><strong>No forums yet</strong>Create one above to get started.</div>`;
   const keepForum = $('#supFForum').value;
-  $('#supFForum').innerHTML = `<option value="">Choose a forum…</option>`+forums.map(f=>`<option value="${esc(f.id)}" ${f.id===keepForum?'selected':''}>${esc(f.name||f.id)}</option>`).join('');
-  if(keepForum && forums.some(f=>f.id===keepForum)) loadSupDetail(keepForum, forums.find(f=>f.id===keepForum).name);
+  $('#supFForum').innerHTML = `<option value="">Choose a forum…</option>`
+    +(forums.length?`<option value="ALL" ${keepForum==='ALL'?'selected':''}>All forums (combined)</option>`:'')
+    +forums.map(f=>`<option value="${esc(f.id)}" ${f.id===keepForum?'selected':''}>${esc(f.name||f.id)}</option>`).join('');
+  if(keepForum==='ALL') loadSupDetail('ALL','All forums (combined)');
+  else if(keepForum && forums.some(f=>f.id===keepForum)) loadSupDetail(keepForum, forums.find(f=>f.id===keepForum).name);
   renderComboSetup();
   renderCombRepSetup();
 }
@@ -2192,9 +2196,33 @@ async function loadSupDetail(forumId, name){
   $('#supFWing').value='All'; $('#supFStatus').value='All';
   $('#supDetailsBody').innerHTML = `<div class="empty">Loading…</div>`;
   try{
-    const [ms, ss] = await Promise.all([cloud.collection('forums/'+forumId+'/members').get(), cloud.collection('forums/'+forumId+'/sessions').get()]);
-    supDetail.members = ms.docs.map(d=>({id:d.id,...d.data()})).filter(m=>m.active!==false);
-    supDetail.sessions = ss.docs.map(d=>{ const v=d.data()||{}; return {id:d.id,name:v.name,date:v.date,attendance:v.attendance||{}}; }).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    if(forumId==='ALL'){
+      // Combined view: pool every forum's members and sessions. Member doc IDs are only
+      // unique within a forum, so every member gets a forum-prefixed _key, and sessions
+      // sharing the same name+date (same deterministic id, see makeSid) are merged into
+      // one combined session with per-member attendance looked up by that same _key.
+      const forums = await forumsListForSuper();
+      const sessionsById = new Map();
+      for(const f of forums){
+        const [ms, ss] = await Promise.all([cloud.collection('forums/'+f.id+'/members').get(), cloud.collection('forums/'+f.id+'/sessions').get()]);
+        ms.docs.forEach(d=>{
+          const v=d.data()||{}; if(v.active===false) return;
+          supDetail.members.push({...v, id:d.id, _key:f.id+'::'+d.id, forumId:f.id, forumName:f.name||f.id});
+        });
+        ss.docs.forEach(d=>{
+          const v=d.data()||{};
+          let s = sessionsById.get(d.id);
+          if(!s){ s={id:d.id,name:v.name,date:v.date,attendance:{}}; sessionsById.set(d.id,s); }
+          const att=v.attendance||{};
+          for(const mid in att) s.attendance[f.id+'::'+mid]=att[mid];
+        });
+      }
+      supDetail.sessions = [...sessionsById.values()].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    }else{
+      const [ms, ss] = await Promise.all([cloud.collection('forums/'+forumId+'/members').get(), cloud.collection('forums/'+forumId+'/sessions').get()]);
+      supDetail.members = ms.docs.map(d=>({id:d.id,_key:d.id,...d.data()})).filter(m=>m.active!==false);
+      supDetail.sessions = ss.docs.map(d=>{ const v=d.data()||{}; return {id:d.id,name:v.name,date:v.date,attendance:v.attendance||{}}; }).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    }
     supDetail.sessionId = supDetail.sessions[0] ? supDetail.sessions[0].id : '';
   }catch(e){ $('#supDetailsBody').innerHTML = `<div class="empty"><strong>Could not load this forum</strong>${esc(explainLoadError(e))}</div>`; return; }
   const units = [...new Set(supDetail.members.map(m=>m.unit).filter(Boolean))].sort();
@@ -2226,7 +2254,7 @@ function supTrendSvg(sessions, members){
   const ss = sessions.slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')).slice(-12);
   if(!ss.length) return '';
   const W=320,H=150,top=20,bot=26,n=ss.length,bw=W/n,ch=H-top-bot;
-  const counts = ss.map(s=>members.filter(m=>s.attendance[m.id]).length);
+  const counts = ss.map(s=>members.filter(m=>s.attendance[m._key||m.id]).length);
   const max=Math.max(1,...counts);
   let out='';
   ss.forEach((s,i)=>{
@@ -2249,13 +2277,13 @@ function renderSupDetails(){
   const byStatus = TIERS.map(t=>[t, list.filter(m=>m.status===t).length]);
   const byUnit = [...new Set(list.map(m=>m.unit))].sort().map(u=>[u, list.filter(m=>m.unit===u).length]);
   const sess = supDetail.sessions.find(s=>s.id===supDetail.sessionId);
-  const present = sess ? list.filter(m=>sess.attendance[m.id]).sort((a,b)=>(sess.attendance[a.id].t||0)-(sess.attendance[b.id].t||0)) : [];
-  const absent = sess ? list.filter(m=>!sess.attendance[m.id]) : [];
+  const present = sess ? list.filter(m=>sess.attendance[m._key]).sort((a,b)=>(sess.attendance[a._key].t||0)-(sess.attendance[b._key].t||0)) : [];
+  const absent = sess ? list.filter(m=>!sess.attendance[m._key]) : [];
   const sessOpts = supDetail.sessions.map(s=>`<option value="${esc(s.id)}" ${s.id===supDetail.sessionId?'selected':''}>${esc(s.name)} · ${esc(fmtDay(s.date))}</option>`).join('');
   const byUnitGrouped = {};
   for(const m of (sess?list:[])){ (byUnitGrouped[m.unit]=byUnitGrouped[m.unit]||[]).push(m); }
   const unitSection = sess ? Object.keys(byUnitGrouped).sort().map(u=>{
-    const ms=byUnitGrouped[u], p=ms.filter(m=>sess.attendance[m.id]);
+    const ms=byUnitGrouped[u], p=ms.filter(m=>sess.attendance[m._key]);
     return `<div class="bar-row"><div class="bar-top"><span class="bar-label">${esc(u)}</span><span class="bar-val">${p.length} of ${ms.length} present</span></div>
       <div class="bar"><i style="width:${ms.length?Math.round(p.length/ms.length*100):0}%;background:var(--brand)"></i></div></div>`;
   }).join('') : '';
@@ -2275,9 +2303,9 @@ function renderSupDetails(){
     ${supDetail.sessions.length ? `<select id="supFSession" style="margin-bottom:12px">${sessOpts}</select>
       ${unitSection}
       <div class="tabs-inline" style="margin-top:10px"><b style="font-size:14px">Present (${present.length})</b></div>
-      ${present.map(m=>`<div class="result"><div class="who"><b>${esc(m.name)}</b><small>${esc(m.unit)} ${pill(m)}${sess.attendance[m.id].paid?' · Paid':''}</small></div><span class="tick">${fmtTime(sess.attendance[m.id].t)}</span></div>`).join('')||`<div class="empty">Nobody yet.</div>`}
+      ${present.map(m=>`<div class="result"><div class="who"><b>${esc(m.name)}</b><small>${esc(m.unit)} ${pill(m)}${supDetail.forumId==='ALL'?' · '+esc(m.forumName):''}${sess.attendance[m._key].paid?' · Paid':''}</small></div><span class="tick">${fmtTime(sess.attendance[m._key].t)}</span></div>`).join('')||`<div class="empty">Nobody yet.</div>`}
       <div class="tabs-inline" style="margin-top:14px"><b style="font-size:14px">Absent (${absent.length})</b></div>
-      ${absent.map(m=>`<div class="result"><div class="who"><b>${esc(m.name)}</b><small>${esc(m.unit)} ${pill(m)}</small></div></div>`).join('')||`<div class="empty">Everyone attended.</div>`}
+      ${absent.map(m=>`<div class="result"><div class="who"><b>${esc(m.name)}</b><small>${esc(m.unit)} ${pill(m)}${supDetail.forumId==='ALL'?' · '+esc(m.forumName):''}</small></div></div>`).join('')||`<div class="empty">Everyone attended.</div>`}
       <div class="btn-row" style="margin-top:16px"><button class="btn" data-act="sup-export-excel">${ic('download',16)}Export member list (.xlsx)</button>
       <button class="btn primary" data-act="sup-export-pdf">${ic('download',16)}Export session report (PDF)</button></div>`
     : `<div class="empty">This forum has no sessions yet.</div>
@@ -2287,7 +2315,7 @@ function renderSupDetails(){
 async function supExportExcel(){
   const ok = await lib('xlsx'); if(!ok || !window.XLSX){ toast('The Excel writer could not load.','bad'); return; }
   const list = supFilteredMembers();
-  const rows = list.map(m=>({ 'Member ID':m.id, 'Name':m.name, 'Membership Status':m.status, 'Unit':m.unit, 'Wing':m.wing }));
+  const rows = list.map(m=>Object.assign({ 'Member ID':m.id, 'Name':m.name, 'Membership Status':m.status, 'Unit':m.unit, 'Wing':m.wing }, supDetail.forumId==='ALL'?{'Forum':m.forumName}:{}));
   const ws = window.XLSX.utils.json_to_sheet(rows), wb = window.XLSX.utils.book_new();
   window.XLSX.utils.book_append_sheet(wb, ws, 'Members');
   const buf = window.XLSX.write(wb, {type:'array', bookType:'xlsx'});
@@ -2300,10 +2328,10 @@ function attendancePdfHtml(title, sess, list, getRec){
   const body = units.map(u=>{
     const ms=byUnitGrouped[u].slice().sort((a,b)=>a.name.localeCompare(b.name));
     const rows = ms.map(m=>{
-      const rec = getRec(m.id); if(rec) totalP++;
+      const rec = getRec(m._key||m.id); if(rec) totalP++;
       return `<tr><td>${esc(m.name)}</td><td>${esc(m.status)}</td><td>${rec?'Present':'Absent'}</td><td>${rec?fmtTime(rec.t):'—'}</td><td>${rec&&rec.paid?'Paid':'—'}</td></tr>`;
     }).join('');
-    const p = ms.filter(m=>getRec(m.id)).length;
+    const p = ms.filter(m=>getRec(m._key||m.id)).length;
     return `<h3>${esc(u)} <span class="muted">(${p} of ${ms.length} present)</span></h3><table><thead><tr><th>Name</th><th>Membership</th><th>Status</th><th>Arrival</th><th>Paid</th></tr></thead><tbody>${rows}</tbody></table>`;
   }).join('');
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(sess.name)} attendance</title><style>
@@ -2327,7 +2355,7 @@ async function buildAttendancePdfBlob(title, sess, list, getRec){
     let y=54;
     const byUnitGrouped = {}; for(const m of list){ (byUnitGrouped[m.unit]=byUnitGrouped[m.unit]||[]).push(m); }
     const units = Object.keys(byUnitGrouped).sort();
-    const totalP = list.filter(m=>getRec(m.id)).length;
+    const totalP = list.filter(m=>getRec(m._key||m.id)).length;
     doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(16,34,43);
     doc.text(`${title} \u2014 ${sess.name}`, margin, y); y+=20;
     doc.setFont('helvetica','normal'); doc.setFontSize(11); doc.setTextColor(90,101,109);
@@ -2340,7 +2368,7 @@ async function buildAttendancePdfBlob(title, sess, list, getRec){
     }
     units.forEach(u=>{
       const ms = byUnitGrouped[u].slice().sort((a,b)=>a.name.localeCompare(b.name));
-      const p = ms.filter(m=>getRec(m.id)).length;
+      const p = ms.filter(m=>getRec(m._key||m.id)).length;
       if(y+40>maxY){ doc.addPage(); y=50; }
       doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(16,34,43);
       doc.text(`${u}  (${p} of ${ms.length} present)`, margin, y); y+=16;
@@ -2348,7 +2376,7 @@ async function buildAttendancePdfBlob(title, sess, list, getRec){
       ms.forEach((m,i)=>{
         if(y+15>maxY){ doc.addPage(); y=50; tableHeader(); }
         if(i%2===0){ doc.setFillColor(244,247,247); doc.rect(margin, y-10, pageW-margin*2, 15, 'F'); }
-        const rec = getRec(m.id);
+        const rec = getRec(m._key||m.id);
         doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(30,38,43);
         doc.text(String(m.name||'').slice(0,34), colX[0]+4, y);
         doc.text(String(m.status||''), colX[1]+4, y);
