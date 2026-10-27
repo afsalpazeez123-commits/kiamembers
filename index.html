@@ -1879,7 +1879,8 @@ document.addEventListener('click', async e=>{
       }
       catch(e){
         const bad = ['auth/invalid-credential','auth/wrong-password','auth/user-not-found','auth/invalid-email'].includes(e.code);
-        loginError(bad ? 'Incorrect email or password.' : 'Could not sign in. Check your connection and try again.');
+        const slow = e.code==='auth/timeout' || e.code==='auth/network-request-failed';
+        loginError(bad ? 'Incorrect email or password.' : slow ? 'Sign-in is taking too long — check your connection and try again.' : 'Could not sign in. Check your connection and try again.');
       }
       break; }
     case 'do-logout': stopPolling(); showMode('login'); await window.__auth.signOutNow(); break;
@@ -3029,7 +3030,13 @@ try{
   window.__authResolve({
     onAuthChange(cb){ return onAuthStateChanged(auth, u=> cb(u?{uid:u.uid,email:u.email}:null)); },
     async signIn(email,password){
-      try{ const cred = await signInWithEmailAndPassword(auth,email,password); return {uid:cred.user.uid,email:cred.user.email}; }
+      try{
+        const cred = await Promise.race([
+          signInWithEmailAndPassword(auth,email,password),
+          new Promise((_,rej)=>setTimeout(()=>rej(Object.assign(new Error('timeout'),{code:'auth/timeout'})),15000))
+        ]);
+        return {uid:cred.user.uid,email:cred.user.email};
+      }
       catch(e){ const err=new Error(e.message); err.code=e.code; throw err; }
     },
     async signOutNow(){ await fbSignOut(auth); },
