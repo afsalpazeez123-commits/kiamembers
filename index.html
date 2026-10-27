@@ -228,9 +228,11 @@ select:disabled{opacity:.65}
 .authscreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}
 .authcard{width:100%;max-width:380px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:26px 22px;box-shadow:var(--shadow)}
 .login-err{margin-top:12px;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--bad) 14%,var(--surface));border:1px solid color-mix(in srgb,var(--bad) 45%,var(--line));color:var(--bad);font-size:14px}
-.forum-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line-2)}
+.forum-row{display:flex;align-items:center;gap:8px 12px;padding:12px 0;border-top:1px solid var(--line-2);flex-wrap:wrap}
 .forum-row:first-child{border-top:0}
-.forum-row .who{flex:1}
+.forum-row .who{flex:1 1 180px;min-width:0}
+.forum-row .s-actions{flex:1 1 100%;flex-wrap:wrap;gap:6px 8px}
+.forum-row .s-actions .btn.small{flex:none}
 .donut-wrap{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
 .legend{flex:1;min-width:140px}
 .legend-row{display:flex;align-items:center;gap:8px;font-size:14px;padding:4px 0}
@@ -2129,9 +2131,9 @@ function explainLoadError(e){
   return `Could not load data — check the connection and press Refresh. (${code})`;
 }
 async function loadSuperStats(forums){
-  const out=[];
+  const out=[], today=todayStr();
   for(const f of forums){
-    let mCount=0, sCount=0, lastDate=null, err=null;
+    let mCount=0, sCount=0, lastDate=null, presentToday=0, err=null;
     try{
       const ms = await cloud.collection('forums/'+f.id+'/members').get();
       mCount = ms.docs.filter(d=>{ const v=d.data()||{}; return v.active!==false; }).length;
@@ -2139,9 +2141,13 @@ async function loadSuperStats(forums){
     try{
       const ss = await cloud.collection('forums/'+f.id+'/sessions').get();
       sCount = ss.size;
-      ss.docs.forEach(d=>{ const v=d.data()||{}; if(v.date && (!lastDate || v.date>lastDate)) lastDate=v.date; });
+      ss.docs.forEach(d=>{
+        const v=d.data()||{};
+        if(v.date && (!lastDate || v.date>lastDate)) lastDate=v.date;
+        if(v.date===today) presentToday += Object.keys(v.attendance||{}).length;
+      });
     }catch(e){ err=err||e; }
-    out.push({...f, mCount, sCount, lastDate, err});
+    out.push({...f, mCount, sCount, lastDate, presentToday, err});
   }
   return out;
 }
@@ -2160,12 +2166,13 @@ async function renderSuperConsole(){
     return;
   }
   const totalMembers = stats.reduce((a,f)=>a+f.mCount,0), totalSessions = stats.reduce((a,f)=>a+f.sCount,0);
+  const totalPresentToday = stats.reduce((a,f)=>a+(f.presentToday||0),0);
   $('#supOverview').innerHTML = (loadErr?`<div class="banner" style="grid-column:1/-1;margin:0">${ic('alert')}<div>Some numbers could not be loaded. ${esc(explainLoadError(loadErr))}</div></div>`:'')+`<div><div class="hero-num">${totalMembers}</div><div class="hero-cap">members across ${stats.length} forum${stats.length===1?'':'s'}</div></div>
     <div class="facts"><div class="fact"><b>${stats.length}</b><span>forums</span></div>
     <div class="fact"><b>${totalSessions}</b><span>sessions total</span></div>
-    <div class="fact"><b>${stats.length?Math.round(totalMembers/stats.length):0}</b><span>avg members / forum</span></div></div>`;
+    <div class="fact"><b>${totalPresentToday}</b><span>present today</span></div></div>`;
   $('#supForumsList').innerHTML = stats.map(f=>`
-    <div class="forum-row"><div class="who"><b>${esc(f.name||f.id)}</b><small>${f.mCount} members · ${f.sCount} session${f.sCount===1?'':'s'}${f.lastDate?' · last '+esc(fmtDay(f.lastDate)):''}</small></div>
+    <div class="forum-row"><div class="who"><b>${esc(f.name||f.id)}</b><small>${f.mCount} members · ${f.sCount} session${f.sCount===1?'':'s'}${f.lastDate?' · last '+esc(fmtDay(f.lastDate)):''}${f.presentToday?' · <b>'+f.presentToday+'</b> present today':''}</small></div>
       <div class="s-actions"><button class="btn small primary" data-act="open-forum" data-fid="${esc(f.id)}">${ic('scan')}Open forum</button>
       <button class="btn small" data-act="view-roster" data-fid="${esc(f.id)}" data-fname="${esc(f.name||f.id)}">View roster</button>
       <button class="btn small" data-act="create-forum-admin" data-fid="${esc(f.id)}">Add admin</button>
