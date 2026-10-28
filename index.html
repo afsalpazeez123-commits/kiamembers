@@ -2184,13 +2184,16 @@ async function refreshSuperOverviewOnly(){
   // Lightweight auto-refresh: just the top numbers and forum-row counts (so "present today"
   // keeps itself current), without touching the forum select, Details, or the combined
   // scanning/report forms — those keep whatever the admin currently has set up in them.
-  if($('#app-super').hidden) { clearInterval(superStatsTimer); superStatsTimer=0; return; }
-  try{
-    const forums = await forumsListForSuper();
-    const stats = await loadSuperStats(forums);
-    const bad = stats.find(f=>f.err);
-    renderSuperOverview(forums, stats, bad ? bad.err : null);
-  }catch(e){ /* silent — next tick tries again */ }
+  const panel = $('#app-super');
+  if(!panel || panel.hidden) { clearInterval(superStatsTimer); superStatsTimer=0; return; }
+  let forums=[], stats=[], loadErr=null;
+  try{ forums = await forumsListForSuper(); }catch(e){ loadErr=e; }
+  if(!loadErr){ try{ stats = await loadSuperStats(forums); }catch(e){ loadErr=e; } }
+  if(!loadErr){ const bad = stats.find(f=>f.err); if(bad) loadErr = bad.err; }
+  // Surface a failure instead of swallowing it — a silently-stuck number looks identical
+  // to "nothing changed", so without this an admin can't tell a quota/connection problem
+  // apart from there genuinely being no new check-ins.
+  renderSuperOverview(forums, stats, loadErr);
 }
 async function renderSuperConsole(){
   showMode('super');
