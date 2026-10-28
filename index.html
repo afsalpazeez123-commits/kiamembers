@@ -1883,7 +1883,7 @@ document.addEventListener('click', async e=>{
         loginError(bad ? 'Incorrect email or password.' : slow ? 'Sign-in is taking too long — check your connection and try again.' : 'Could not sign in. Check your connection and try again.');
       }
       break; }
-    case 'do-logout': stopPolling(); showMode('login'); await window.__auth.signOutNow(); break;
+    case 'do-logout': stopPolling(); clearInterval(superStatsTimer); superStatsTimer=0; showMode('login'); await window.__auth.signOutNow(); break;
     case 'create-forum': {
       const name=$('#supForumName').value.trim().replace(/\s+/g,' ');
       if(!name){ toast('Enter a forum name.','bad'); break; }
@@ -1892,7 +1892,7 @@ document.addEventListener('click', async e=>{
       catch(e){ toast('Could not create that forum — check your connection.','bad'); }
       break; }
     case 'refresh-super': renderSuperConsole(); break;
-    case 'open-forum': stopPolling(); await enterForum(el.dataset.fid, true); break;
+    case 'open-forum': stopPolling(); clearInterval(superStatsTimer); superStatsTimer=0; await enterForum(el.dataset.fid, true); break;
     case 'back-to-super': stopPolling(); renderSuperConsole(); break;
     case 'empty-forum-members': await superEmptyForumMembers(el.dataset.fid, el.dataset.fname); break;
     case 'combo-start': comboStart(); break;
@@ -2136,8 +2136,10 @@ function explainLoadError(e){
   return `Could not load data — check the connection and press Refresh. (${code})`;
 }
 async function loadSuperStats(forums){
-  const out=[], today=todayStr();
-  for(const f of forums){
+  // Fetch every forum's counts in parallel (not one-by-one) — with several forums this
+  // is the difference between a handful of round trips happening at once vs. in series.
+  const today=todayStr();
+  const out = await Promise.all(forums.map(async f=>{
     let mCount=0, sCount=0, lastDate=null, presentToday=0, err=null;
     try{
       const ms = await cloud.collection('forums/'+f.id+'/members').get();
@@ -2152,18 +2154,12 @@ async function loadSuperStats(forums){
         if(v.date===today) presentToday += Object.keys(v.attendance||{}).length;
       });
     }catch(e){ err=err||e; }
-    out.push({...f, mCount, sCount, lastDate, presentToday, err});
-  }
+    return {...f, mCount, sCount, lastDate, presentToday, err};
+  }));
   return out;
 }
-async function renderSuperConsole(){
-  showMode('super');
-  $('#supForumsList').innerHTML = `<div class="empty">Loading…</div>`;
-  $('#supOverview').innerHTML = `<div class="hero-num">…</div><div class="hero-cap">loading overview</div>`;
-  let forums=[], stats=[], loadErr=null;
-  try{ forums = await forumsListForSuper(); }catch(e){ loadErr=e; }
-  if(!loadErr){ try{ stats = await loadSuperStats(forums); }catch(e){ loadErr=e; } }
-  if(!loadErr){ const bad = stats.find(f=>f.err); if(bad) loadErr = bad.err; }
+let superStatsTimer = 0;
+function renderSuperOverview(forums, stats, loadErr){
   if(loadErr && !forums.length){ // nothing loaded at all: say why, instead of an empty-looking screen
     $('#supOverview').innerHTML = `<div class="banner" style="grid-column:1/-1;margin:0">${ic('alert')}<div>${esc(explainLoadError(loadErr))}</div></div>
       <div style="grid-column:1/-1"><button class="btn primary" data-act="refresh-super">Try again</button></div>`;
@@ -2183,6 +2179,29 @@ async function renderSuperConsole(){
       <button class="btn small" data-act="create-forum-admin" data-fid="${esc(f.id)}">Add admin</button>
       <button class="iconbtn" data-act="empty-forum-members" data-fid="${esc(f.id)}" data-fname="${esc(f.name||f.id)}" aria-label="Empty member list for ${esc(f.name||f.id)}" title="Empty member list">${ic('trash')}</button></div></div>`).join('')
     || `<div class="empty"><strong>No forums yet</strong>Create one above to get started.</div>`;
+}
+async function refreshSuperOverviewOnly(){
+  // Lightweight auto-refresh: just the top numbers and forum-row counts (so "present today"
+  // keeps itself current), without touching the forum select, Details, or the combined
+  // scanning/report forms — those keep whatever the admin currently has set up in them.
+  if($('#app-super').hidden) { clearInterval(superStatsTimer); superStatsTimer=0; return; }
+  try{
+    const forums = await forumsListForSuper();
+    const stats = await loadSuperStats(forums);
+    const bad = stats.find(f=>f.err);
+    renderSuperOverview(forums, stats, bad ? bad.err : null);
+  }catch(e){ /* silent — next tick tries again */ }
+}
+async function renderSuperConsole(){
+  showMode('super');
+  $('#supForumsList').innerHTML = `<div class="empty">Loading…</div>`;
+  $('#supOverview').innerHTML = `<div class="hero-num">…</div><div class="hero-cap">loading overview</div>`;
+  let forums=[], stats=[], loadErr=null;
+  try{ forums = await forumsListForSuper(); }catch(e){ loadErr=e; }
+  if(!loadErr){ try{ stats = await loadSuperStats(forums); }catch(e){ loadErr=e; } }
+  if(!loadErr){ const bad = stats.find(f=>f.err); if(bad) loadErr = bad.err; }
+  renderSuperOverview(forums, stats, loadErr);
+  if(loadErr && !forums.length) return;
   const keepForum = $('#supFForum').value;
   $('#supFForum').innerHTML = `<option value="">Choose a forum…</option>`
     +(forums.length?`<option value="ALL" ${keepForum==='ALL'?'selected':''}>All forums (combined)</option>`:'')
@@ -2191,6 +2210,8 @@ async function renderSuperConsole(){
   else if(keepForum && forums.some(f=>f.id===keepForum)) loadSupDetail(keepForum, forums.find(f=>f.id===keepForum).name);
   renderComboSetup();
   renderCombRepSetup();
+  clearInterval(superStatsTimer);
+  superStatsTimer = setInterval(refreshSuperOverviewOnly, 20000);
 }
 
 /* ---- super-admin "Details": one forum's breakdown, session attendance, and exports ---- */
