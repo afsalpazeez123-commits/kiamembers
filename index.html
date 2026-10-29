@@ -293,9 +293,11 @@ select:disabled{opacity:.65}
       <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true"><rect x="2" y="2" width="9" height="9" rx="2.2" stroke="currentColor" stroke-width="2.4"/><rect x="15" y="2" width="9" height="9" rx="2.2" stroke="currentColor" stroke-width="2.4"/><rect x="2" y="15" width="9" height="9" rx="2.2" stroke="currentColor" stroke-width="2.4"/><rect x="15" y="15" width="4" height="4" rx="1" fill="currentColor"/><rect x="20.5" y="20.5" width="3.5" height="3.5" rx="1" fill="currentColor"/></svg>
       CFM Attendance — Admin
     </div>
+    <nav class="tabs tabs-top" data-supnav aria-label="Sections"></nav>
     <button class="chip" data-act="do-logout" style="margin-left:auto"><span>Sign out</span></button>
   </header>
-  <div class="view" style="max-width:720px;margin:0 auto">
+  <main>
+  <section class="view" id="sup-v-overview" style="max-width:720px;margin:0 auto">
     <div class="card hero" id="supOverview"></div>
     <div class="card">
       <h2>New forum / area</h2>
@@ -305,6 +307,8 @@ select:disabled{opacity:.65}
       </div>
     </div>
     <div class="card"><div class="card-head"><h2>Forums</h2><button class="btn small" data-act="refresh-super">Refresh</button></div><div id="supForumsList"></div></div>
+  </section>
+  <section class="view" id="sup-v-details" style="max-width:720px;margin:0 auto" hidden>
     <div class="card">
       <h2>Details</h2>
       <div class="dash-controls">
@@ -315,17 +319,23 @@ select:disabled{opacity:.65}
       </div>
       <div id="supDetailsBody"><div class="empty"><strong>Choose a forum above</strong>See its breakdown, session attendance, and export options.</div></div>
     </div>
+  </section>
+  <section class="view" id="sup-v-combo" style="max-width:720px;margin:0 auto" hidden>
     <div class="card">
       <h2>Combined scanning across forums</h2>
       <p style="margin:0 0 12px;color:var(--ink-2)">Scan members from several forums into one shared event. Each check-in is saved straight into that member's own forum — forum admins see it in their normal sessions and dashboard, and can run their own payment counter on the same session afterwards.</p>
       <div id="comboBody"></div>
     </div>
+  </section>
+  <section class="view" id="sup-v-combrep" style="max-width:720px;margin:0 auto" hidden>
     <div class="card">
       <h2>Combined report</h2>
       <p style="margin:0 0 12px;color:var(--ink-2)">See attendance and payment across several forums for one event, broken down by unit within each forum. Use the same event name and date you used for combined scanning.</p>
       <div id="combRepBody"></div>
     </div>
-  </div>
+  </section>
+  </main>
+  <nav class="tabs tabs-bottom" data-supnav aria-label="Sections"></nav>
 </div>
 
 <div id="app-forum" hidden>
@@ -1863,6 +1873,8 @@ async function importBackup(file){
 document.addEventListener('click', async e=>{
   const tab=e.target.closest('[data-tab]');
   if(tab){ go(tab.dataset.tab); return; }
+  const supTabBtn=e.target.closest('[data-suptab]');
+  if(supTabBtn){ goSuper(supTabBtn.dataset.suptab); return; }
   if(e.target.closest('[data-close]')){ closeModal(); return; }
   const el=e.target.closest('[data-act]'); if(!el) return;
   const a=el.dataset.act, id=el.dataset.id, sid=el.dataset.sid;
@@ -2166,6 +2178,28 @@ async function loadSuperStats(forums){
   }));
   return out;
 }
+const SUP_TABS = [['overview','Overview','chart'],['details','Details','table'],['combo','Combined scan','scan'],['combrep','Combined report','calendar']];
+let supTab = 'overview', supForumsCache = [];
+function renderSupNav(){
+  const h = SUP_TABS.map(([id,label,icon])=>`<button class="tab" data-suptab="${id}" ${supTab===id?'aria-current="page"':''}>${ic(icon,22)}<span>${label}</span></button>`).join('');
+  $$('[data-supnav]').forEach(n=>{ n.innerHTML=h; });
+}
+function goSuper(tab){
+  supTab = tab;
+  $$('#app-super main .view').forEach(v=>{ v.hidden = v.id!=='sup-v-'+tab; });
+  renderSupNav();
+  // Each section's own data is only fetched once its tab is actually opened — with several
+  // forums, pulling every forum's full member list for Details/Combined scan/Combined report
+  // on every login or refresh adds up fast against Firestore's daily free read quota.
+  if(tab==='details'){
+    const keepForum = $('#supFForum').value;
+    if(keepForum==='ALL') loadSupDetail('ALL','All forums (combined)');
+    else if(keepForum && supForumsCache.some(f=>f.id===keepForum)) loadSupDetail(keepForum, supForumsCache.find(f=>f.id===keepForum).name);
+  }
+  else if(tab==='combo') renderComboSetup();
+  else if(tab==='combrep') renderCombRepSetup();
+  window.scrollTo(0,0);
+}
 let superStatsTimer = 0;
 function renderSuperOverview(forums, stats, loadErr){
   if(loadErr && !forums.length){ // nothing loaded at all: say why, instead of an empty-looking screen
@@ -2194,6 +2228,7 @@ async function refreshSuperOverviewOnly(){
   // scanning/report forms — those keep whatever the admin currently has set up in them.
   const panel = $('#app-super');
   if(!panel || panel.hidden) { clearInterval(superStatsTimer); superStatsTimer=0; return; }
+  if(supTab!=='overview') return; // don't spend reads refreshing a card the admin isn't looking at
   let forums=[], stats=[], loadErr=null;
   try{ forums = await forumsListForSuper(); }catch(e){ loadErr=e; }
   if(!loadErr){ try{ stats = await loadSuperStats(forums); }catch(e){ loadErr=e; } }
@@ -2212,17 +2247,16 @@ async function renderSuperConsole(){
   if(!loadErr){ try{ stats = await loadSuperStats(forums); }catch(e){ loadErr=e; } }
   if(!loadErr){ const bad = stats.find(f=>f.err); if(bad) loadErr = bad.err; }
   renderSuperOverview(forums, stats, loadErr);
-  if(loadErr && !forums.length) return;
-  const keepForum = $('#supFForum').value;
-  $('#supFForum').innerHTML = `<option value="">Choose a forum…</option>`
-    +(forums.length?`<option value="ALL" ${keepForum==='ALL'?'selected':''}>All forums (combined)</option>`:'')
-    +forums.map(f=>`<option value="${esc(f.id)}" ${f.id===keepForum?'selected':''}>${esc(f.name||f.id)}</option>`).join('');
-  if(keepForum==='ALL') loadSupDetail('ALL','All forums (combined)');
-  else if(keepForum && forums.some(f=>f.id===keepForum)) loadSupDetail(keepForum, forums.find(f=>f.id===keepForum).name);
-  renderComboSetup();
-  renderCombRepSetup();
+  supForumsCache = forums;
+  if(!(loadErr && !forums.length)){
+    const keepForum = $('#supFForum').value;
+    $('#supFForum').innerHTML = `<option value="">Choose a forum…</option>`
+      +(forums.length?`<option value="ALL" ${keepForum==='ALL'?'selected':''}>All forums (combined)</option>`:'')
+      +forums.map(f=>`<option value="${esc(f.id)}" ${f.id===keepForum?'selected':''}>${esc(f.name||f.id)}</option>`).join('');
+  }
   clearInterval(superStatsTimer);
   superStatsTimer = setInterval(refreshSuperOverviewOnly, 20000);
+  goSuper(supTab);
 }
 
 /* ---- super-admin "Details": one forum's breakdown, session attendance, and exports ---- */
