@@ -2135,10 +2135,17 @@ function explainLoadError(e){
   if(code==='permission-denied') return `Firestore is refusing this read — the security rules may have changed or been reset. (${code})`;
   return `Could not load data — check the connection and press Refresh. (${code})`;
 }
+function checkedInToday(ts){
+  // A forum often reuses the same session (e.g. "General meeting") across many days, so the
+  // session document's own `date` field stays fixed at whenever it was first created — it does
+  // NOT tell us when a given check-in actually happened. Use the check-in's own timestamp instead.
+  if(!ts) return false;
+  const d=new Date(ts), now=new Date();
+  return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth() && d.getDate()===now.getDate();
+}
 async function loadSuperStats(forums){
   // Fetch every forum's counts in parallel (not one-by-one) — with several forums this
   // is the difference between a handful of round trips happening at once vs. in series.
-  const today=todayStr();
   const out = await Promise.all(forums.map(async f=>{
     let mCount=0, sCount=0, lastDate=null, presentToday=0, err=null;
     try{
@@ -2151,7 +2158,8 @@ async function loadSuperStats(forums){
       ss.docs.forEach(d=>{
         const v=d.data()||{};
         if(v.date && (!lastDate || v.date>lastDate)) lastDate=v.date;
-        if(v.date===today) presentToday += Object.keys(v.attendance||{}).length;
+        const att=v.attendance||{};
+        for(const mid in att){ if(checkedInToday(att[mid].t)) presentToday++; }
       });
     }catch(e){ err=err||e; }
     return {...f, mCount, sCount, lastDate, presentToday, err};
