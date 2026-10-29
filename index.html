@@ -2167,12 +2167,22 @@ async function loadSuperStats(forums){
     try{
       const ss = await cloud.collection('forums/'+f.id+'/sessions').get();
       sCount = ss.size;
+      // "present today" is the count for whichever session most recently received a check-in
+      // today — not a sum across every session touched today. A forum that starts a fresh
+      // session for a new event shouldn't have its count keep adding on top of an earlier,
+      // unrelated session from earlier the same day.
+      let latestTouch = 0, latestCount = 0;
       ss.docs.forEach(d=>{
         const v=d.data()||{};
         if(v.date && (!lastDate || v.date>lastDate)) lastDate=v.date;
         const att=v.attendance||{};
-        for(const mid in att){ if(checkedInToday(att[mid].t)) presentToday++; }
+        let sessionCount=0, sessionLatest=0;
+        for(const mid in att){
+          if(checkedInToday(att[mid].t)){ sessionCount++; if(att[mid].t>sessionLatest) sessionLatest=att[mid].t; }
+        }
+        if(sessionLatest>latestTouch){ latestTouch=sessionLatest; latestCount=sessionCount; }
       });
+      presentToday = latestCount;
     }catch(e){ err=err||e; }
     return {...f, mCount, sCount, lastDate, presentToday, err};
   }));
